@@ -49,7 +49,7 @@ func TestPreviewUsesAvailableWindow(t *testing.T) {
 					if frame.RGBAAt(int(viewer.X+1), int(viewer.Y+1)) != frame.RGBAAt(int(viewer.X-4), int(viewer.Y+1)) {
 						t.Fatal("image well must share the preview panel background")
 					}
-					if viewer.H < float32(size[1])*0.7 || viewer.W < min(float32(size[0]), float32(previewMaxWidth+40))-440 {
+					if viewer.H < float32(size[1])*0.7 || viewer.W < min(float32(size[0]-2*previewWindowInset), float32(previewMaxWidth))-400 {
 						t.Fatalf("preview must expand with the window: %+v", viewer)
 					}
 					controls, _ := tt.Find("适应窗口")

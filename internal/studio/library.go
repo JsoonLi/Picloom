@@ -345,7 +345,7 @@ func (a *App) beginPreview(title string, record *domain.ImageRecord, placeholder
 	if placeholder != nil && w > 0 && h > 0 {
 		a.previewBitmap, a.previewWidth, a.previewHeight = placeholder, float32(w), float32(h)
 	}
-	a.previewReferences = nil
+	a.previewMedia = previewMedia{session: a.previewMedia.session + 1}
 	a.previewLoading = true
 	return a.previewRequest
 }
@@ -410,36 +410,11 @@ func (a *App) loadPreview(request uint64, read func() ([]byte, error), then func
 
 func (a *App) openArtwork(record domain.ImageRecord) {
 	request := a.beginPreview("作品详情", &record, a.thumbs[record.ID], record.Width, record.Height)
-	a.loadPreview(request, func() ([]byte, error) { return a.backend.ReadImage(record.ID) }, func() {
-		if record.ReferenceCount == 0 {
-			return
-		}
-		a.run(func() func() {
-			var refs []*ui.Bitmap
-			var err error
-			for i := 0; i < record.ReferenceCount; i++ {
-				var data []byte
-				var thumb *ui.Bitmap
-				if data, err = a.backend.ReadReference(record.ID, i); err == nil {
-					thumb, err = thumbnail(data, referenceThumbSize, referenceThumbSize)
-				}
-				if err != nil {
-					break
-				}
-				refs = append(refs, thumb)
-			}
-			return func() {
-				if request != a.previewRequest {
-					return
-				}
-				if err != nil {
-					a.problem = err.Error()
-					return
-				}
-				a.previewReferences = refs
-			}
-		})
-	})
+	a.previewMedia.result = a.thumbs[record.ID]
+	a.previewMedia.references = make([]*ui.Bitmap, min(4, max(0, record.ReferenceCount)))
+	a.previewMedia.problems = make([]string, 1+len(a.previewMedia.references))
+	a.loadPreview(request, func() ([]byte, error) { return a.backend.ReadImage(record.ID) }, nil)
+	a.loadPreviewThumbnails(record)
 }
 
 func (a *App) openReference(reference domain.Reference) {
@@ -450,25 +425,36 @@ func (a *App) openReference(reference domain.Reference) {
 // releasePreview drops the full-resolution preview once the viewer closes
 // and abandons decodes still running for it.
 func (a *App) releasePreview() {
-	if a.previewOpen || (a.previewBitmap == nil && a.previewReferences == nil && !a.previewLoading && a.markup == nil) {
+	if a.previewOpen || (a.previewBitmap == nil && a.previewMedia.result == nil && a.previewMedia.references == nil && !a.previewMedia.loading && !a.previewLoading && a.markup == nil) {
 		return
 	}
 	a.previewRequest++
-	a.previewBitmap, a.previewReferences, a.previewLoading = nil, nil, false
+	a.previewBitmap, a.previewLoading = nil, false
+	a.previewMedia = previewMedia{session: a.previewMedia.session + 1}
 	a.previewAnimation = nil
 	a.previewWidth, a.previewHeight = 0, 0
 	a.previewData, a.markup = nil, nil
 	a.previewEditable = false
 }
 
-const previewMaxWidth = 1280
+const (
+	previewMaxWidth    = 1280
+	previewWindowInset = 48
+)
 
 func (a *App) preview(c *ui.Context, narrow bool) {
 	restore := popoverTheme(c)
 	defer restore()
 	width, height := c.Size()
-	contentWidth := min(float32(previewMaxWidth-40), max(float32(240), width-80))
-	contentHeight := max(float32(240), height-80)
+	inset := float32(previewWindowInset)
+	if narrow {
+		inset = 24
+	}
+	// Modal adds its own padding outside this content. Reserve the full outer
+	// inset so the panel clears the native titlebar and traffic-light controls.
+	padding := c.Theme().Space(5)
+	contentWidth := min(float32(previewMaxWidth)-2*padding, max(float32(200), width-2*(inset+padding)))
+	contentHeight := max(float32(240), height-2*(inset+padding))
 	wide := width >= 900 && (a.previewRecord != nil || a.markup != nil)
 	defer a.releasePreview()
 	ui.Modal(c.Key("preview-dialog"), &a.previewOpen, func() {
@@ -533,9 +519,6 @@ func (a *App) previewDetails(c *ui.Context, record domain.ImageRecord) {
 	if a.notice != "" {
 		ui.Text(c.Key("preview-notice"), a.notice).TextColor(c.Theme().TextMuted)
 	}
-	if a.previewTitle != "作品详情" {
-		quietButton(c, "preview-original", "查看生成原图").Height(40).OnClick(func() { a.openArtwork(record) })
-	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "提示词").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 		ui.Spacer(c)
@@ -551,15 +534,7 @@ func (a *App) previewDetails(c *ui.Context, record domain.ImageRecord) {
 	})
 	a.gifActualTiming(c, record)
 	ui.Text(c, time.UnixMilli(record.CreatedAt).Format("2006/1/2 15:04:05")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-	if len(a.previewReferences) > 0 {
-		ui.Text(c, "生成时使用的参考图").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-		ui.Row(c).Wrap().Gap(8).Children(func() {
-			for i, thumb := range a.previewReferences {
-				index := i
-				ui.Image(c.Key(fmt.Sprintf("saved-reference-%d", i)), thumb).Size(60, 60).Fit(ui.Contain).Radius(8).Border(1, c.Theme().Border).Label(fmt.Sprintf("参考图 %d", i+1)).Focusable().OnClick(func() { a.openSavedReference(record, index) })
-			}
-		})
-	}
+	a.previewImageStrip(c, record)
 }
 
 func (a *App) previewActions(c *ui.Context, record domain.ImageRecord) {
@@ -603,11 +578,7 @@ func (a *App) previewActions(c *ui.Context, record domain.ImageRecord) {
 }
 
 func (a *App) openSavedReference(record domain.ImageRecord, index int) {
-	refs := a.previewReferences
-	request := a.beginPreview(fmt.Sprintf("参考图 %d", index+1), &record, nil, 0, 0)
-	// Keep the reference strip so switching between references stays instant.
-	a.previewReferences = refs
-	a.loadPreview(request, func() ([]byte, error) { return a.backend.ReadReference(record.ID, index) }, nil)
+	a.selectPreviewImage(record, index+1)
 }
 
 func (a *App) perform(operation func() (string, error)) {

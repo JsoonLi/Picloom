@@ -81,7 +81,7 @@ type App struct {
 	markup                                       *markupEditor
 	previewAnimation                             *previewAnimation
 	previewWidth, previewHeight                  float32
-	previewReferences                            []*ui.Bitmap
+	previewMedia                                 previewMedia
 	previewLoading                               bool
 	previewTitle                                 string
 	previewRequest                               uint64

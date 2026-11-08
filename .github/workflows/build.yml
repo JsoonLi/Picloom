@@ -1,0 +1,196 @@
+name: Build and Release Installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    name: Validate release request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify manual branch and both release versions
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          node <<'NODE'
+          const pkg = require('./package.json');
+          const native = require('./mygo.json');
+          if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' && process.env.GITHUB_REF !== 'refs/heads/' + process.env.DEFAULT_BRANCH) throw new Error('Manual releases must run from the default branch');
+          if (pkg.version !== native.version) throw new Error('package.json and mygo.json versions must match');
+          if (!/^[0-9]+[.][0-9]+[.][0-9]+$/.test(pkg.version)) throw new Error('Release version must be major.minor.patch');
+          if (process.env.GITHUB_REF.startsWith('refs/tags/') && process.env.GITHUB_REF_NAME !== 'v' + pkg.version) throw new Error('Release tag must match package.json and mygo.json');
+          NODE
+
+  build:
+    needs: preflight
+    name: ${{ matrix.platform }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win
+            arch: x64
+            target: windows/amd64
+            runner: windows-2025
+            extension: exe
+            executable: dist-native/windows-amd64/Image2AI.exe
+            e2e_executable: .cache/native-e2e/windows-amd64/Image2AI.exe
+          - platform: mac
+            arch: x64
+            target: darwin/amd64
+            runner: macos-15-intel
+            extension: dmg
+            executable: dist-native/darwin-amd64/Image2AI.app/Contents/MacOS/Image2AI
+            e2e_executable: .cache/native-e2e/darwin-amd64/Image2AI.app/Contents/MacOS/Image2AI
+          - platform: mac
+            arch: arm64
+            target: darwin/arm64
+            runner: macos-15
+            extension: dmg
+            executable: dist-native/darwin-arm64/Image2AI.app/Contents/MacOS/Image2AI
+            e2e_executable: .cache/native-e2e/darwin-arm64/Image2AI.app/Contents/MacOS/Image2AI
+    env:
+      CGO_ENABLED: "0"
+      MYGO_INSPECTOR: ""
+      GOFLAGS: ""
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: go.sum
+
+      - name: Verify native runner architecture
+        run: test "$(go env GOOS)/$(go env GOARCH)" = "${{ matrix.target }}"
+
+      - name: Verify locked modules
+        run: go mod download && go mod verify
+
+      - name: Run unit and native view tests
+        run: go test ./...
+
+      - name: Run race detector on macOS
+        if: matrix.platform == 'mac'
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./internal/...
+
+      - name: Build packaged automation test application
+        env:
+          GOFLAGS: "-tags=e2e"
+        run: go tool mygo build -debug -skip-installer -skip-dmg -platform "${{ matrix.target }}" -o .cache/native-e2e
+
+      - name: Run native end-to-end smoke
+        run: go run ./cmd/smoke -app "${{ matrix.e2e_executable }}"
+
+      - name: Build production installer without automation
+        run: go tool mygo build -platform "${{ matrix.target }}"
+
+      - name: Smoke test the final production executable
+        run: go run ./cmd/smoke -release -app "${{ matrix.executable }}" -out test-results/native-release
+
+      - name: Collect verified installer
+        run: go run ./cmd/artifacts -platform "${{ matrix.target }}"
+
+      - name: Upload verified installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Image2AI-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist-native/releases/*.${{ matrix.extension }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload smoke diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-diagnostics-${{ matrix.platform }}-${{ matrix.arch }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: image2ai-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release source and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download verified installers
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: Image2AI-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Publish all three verified installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          RELEASE_TAG="v${version}"
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            if [[ "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" != "$RELEASE_SHA" ]]; then
+              echo "::error::Version tag points to a different commit. Bump the package version."
+              exit 1
+            fi
+          fi
+          assets=(
+            "release-assets/Image2AI-Setup-${version}-x64.exe"
+            "release-assets/Image2AI-${version}-macOS-x64.dmg"
+            "release-assets/Image2AI-${version}-macOS-arm64.dmg"
+          )
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
+          done
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > release-state.txt 2>/dev/null; then
+            if [[ "$(cat release-state.txt)" != "true" ]]; then
+              echo "::error::Refusing to overwrite an already published release."
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --target "$RELEASE_SHA" --draft --title "Image2AI $RELEASE_TAG" --generate-notes
+          fi
+          gh release edit "$RELEASE_TAG" --target "$RELEASE_SHA" --draft=false --latest

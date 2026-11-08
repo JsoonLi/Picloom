@@ -1,0 +1,23 @@
+{
+  "name": "image2ai",
+  "private": true,
+  "version": "0.5.0",
+  "description": "Native AI image generation studio built with Go and MyGo",
+  "author": "Image2AI",
+  "scripts": {
+    "dev": "node scripts/native.cjs dev",
+    "start": "node scripts/native.cjs dev",
+    "build": "node scripts/native.cjs build",
+    "typecheck": "node scripts/native.cjs vet",
+    "test": "node scripts/native.cjs test",
+    "test:smoke": "node scripts/native.cjs smoke",
+    "pack": "node scripts/native.cjs pack",
+    "dist": "node scripts/native.cjs dist",
+    "dist:win:x64": "node scripts/native.cjs dist windows/amd64",
+    "dist:mac:x64": "node scripts/native.cjs dist darwin/amd64",
+    "dist:mac:arm64": "node scripts/native.cjs dist darwin/arm64",
+    "assets": "node scripts/assets.cjs"
+  },
+  "devDependencies": { "@resvg/resvg-js": "^2.6.2" },
+  "engines": { "node": ">=24" }
+}

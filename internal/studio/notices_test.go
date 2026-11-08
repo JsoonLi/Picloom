@@ -1,0 +1,72 @@
+package studio
+
+import (
+	"testing"
+	"time"
+
+	"image2ai/internal/domain"
+)
+
+func TestAppearanceSaveDoesNotShowNotice(t *testing.T) {
+	a, tt, b, d := fixture(t, 1280, 900)
+	a.openSettings()
+	a.settingsTab = "外观"
+	a.draftTheme = "dark"
+	tt.Frame()
+	click(t, tt, "保存外观设置")
+	settle(a, tt)
+	if b.config.Theme != "dark" || d.theme != "dark" {
+		t.Fatal("appearance must still be saved and applied")
+	}
+	a.settingsOpen = false
+	tt.Frame()
+	if a.notice != "" || tt.HasText("外观设置已保存") {
+		t.Fatal("appearance saves must not show a success notice")
+	}
+}
+
+func TestOperationNoticesExpireInEveryView(t *testing.T) {
+	for _, view := range []string{"workspace", "settings", "preview"} {
+		t.Run(view, func(t *testing.T) {
+			a, tt, _, _ := fixture(t, 1280, 900)
+			switch view {
+			case "settings":
+				a.openSettings()
+			case "preview":
+				a.openArtwork(domain.ImageRecord{ID: "saved", Prompt: "山间小屋"})
+				settle(a, tt)
+			}
+			const message = "图片已复制。"
+			a.perform(func() (string, error) { return message, nil })
+			settle(a, tt)
+			if !tt.HasText(message) {
+				t.Fatal("operation notice must be visible initially")
+			}
+			tt.Advance(3 * time.Second)
+			if a.notice != "" || tt.HasText(message) {
+				t.Fatal("operation notice must disappear automatically after three seconds")
+			}
+		})
+	}
+}
+
+func TestRepeatedNoticeRestartsExpiryAndKeepsErrors(t *testing.T) {
+	a, tt, _, _ := fixture(t, 1280, 900)
+	notify := func() {
+		a.perform(func() (string, error) { return "图片已复制。", nil })
+		settle(a, tt)
+	}
+	notify()
+	tt.Advance(2 * time.Second)
+	notify()
+	tt.Advance(2 * time.Second)
+	if !tt.HasText("图片已复制。") {
+		t.Fatal("repeating an operation must restart the notice lifetime")
+	}
+	a.problem = "本机文件读取失败"
+	tt.Frame()
+	tt.Advance(time.Second)
+	if a.notice != "" || !tt.HasText(a.problem) || a.problem == "" {
+		t.Fatal("notice expiry must leave errors visible")
+	}
+}

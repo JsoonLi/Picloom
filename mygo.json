@@ -2,7 +2,7 @@
   "name": "Picloom",
   "slug": "picloom",
   "identifier": "com.image2ai.desktop",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "绘织 · 原生 AI 图像创作工作室",
   "icon": "build/icon-mac.png",
   "out": "dist-native",

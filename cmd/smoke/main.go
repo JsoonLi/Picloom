@@ -226,6 +226,9 @@ func run() error {
 				}
 				prompt = args.Prompt
 			}
+			// These are synthetic local-provider requests only. Keep their prompts
+			// in CI output so a failed UI action is distinguishable from a provider error.
+			fmt.Printf("MOCK generation request: path=%q prompt=%q\n", r.URL.Path, prompt)
 			if strings.Contains(prompt, "fail-once") && failures.Add(1) == 1 {
 				http.Error(w, "synthetic failure", 503)
 				return
@@ -431,6 +434,24 @@ func run() error {
 		return errors.New("未持久化参考图")
 	}
 	if err = c.act("reuse-"+edited.ID, "press", ""); err != nil {
+		return err
+	}
+	// UI idle does not wait for reference decoding in the reuse worker. Wait
+	// for its observable result before entering the next request, otherwise
+	// that worker can replace the fail-once prompt with the reused prompt.
+	if err = c.wait("复用提示词与参考图完成", func(nodes []node) bool {
+		prompt := find(nodes, "prompt")
+		if prompt == nil || prompt.Value != edited.Prompt {
+			return false
+		}
+		references := 0
+		for _, n := range nodes {
+			if strings.HasPrefix(n.Key, "remove-reference-") {
+				references++
+			}
+		}
+		return references == edited.ReferenceCount
+	}); err != nil {
 		return err
 	}
 	if err = c.act("prompt", "setValue", "fail-once 原生重试"); err != nil {

@@ -323,7 +323,7 @@ func TestImportLimitAndProviderResolutionFallback(t *testing.T) {
 	}
 }
 
-func TestFailedTaskRetainsRetryParameters(t *testing.T) {
+func TestFailedTaskRetainsRedoParameters(t *testing.T) {
 	a, tt, b, _ := fixture(t, 1280, 900)
 	a.prompt = "石桥边的竹林"
 	b.fail = errors.New("模拟服务暂不可用")
@@ -337,14 +337,16 @@ func TestFailedTaskRetainsRetryParameters(t *testing.T) {
 		t.Fatal("retry parameters were lost")
 	}
 	b.fail = nil
-	a.prompt = "重试期间的草稿"
-	task := a.jobs[0]
-	a.removeJob(task)
-	args.JobID = newID()
-	a.startJob(args, task.ProviderName)
+	click(t, tt, "重做")
 	settle(a, tt)
-	if len(a.history.Items) != 1 || len(a.jobs) != 0 || a.prompt != "重试期间的草稿" {
-		t.Fatal("retry did not complete")
+	if len(a.history.Items) != 0 || len(a.jobs) != 0 || a.prompt != args.Prompt {
+		t.Fatal("redo must restore editable input without sending")
+	}
+	a.prompt = "修改后的草稿"
+	click(t, tt, "开始生成")
+	settle(a, tt)
+	if len(a.history.Items) != 1 || len(a.jobs) != 0 || a.history.Items[0].Prompt != "修改后的草稿" {
+		t.Fatal("edited redo did not complete")
 	}
 }
 

@@ -13,6 +13,9 @@ import (
 )
 
 type markupEditor struct {
+	baseMarkup                                      string
+	baseBitmap                                      *ui.Bitmap
+	exactSize                                       string
 	source, prompt, providerID, model, outputFormat string
 	ratio, resolution                               string
 	picture                                         *ui.Bitmap
@@ -37,7 +40,20 @@ func (a *App) beginMarkup() {
 }
 
 func (a *App) loadMarkup(read func() ([]byte, error), direct bool) {
+	a.loadMarkupWithBase(read, direct, "")
+}
+
+func (a *App) loadMarkupWithBase(read func() ([]byte, error), direct bool, base string) {
 	e := &markupEditor{providerID: a.providerID, model: a.model, outputFormat: a.outputFormat, ratio: "auto", resolution: "auto", tool: "pen", weight: "中", busy: true, direct: direct}
+	e.baseMarkup = base
+	if base != "" {
+		e.prompt = a.prompt
+		if a.draftSize == "" {
+			e.ratio, e.resolution = a.ratio, a.resolution
+		} else if a.draftSize != "auto" {
+			e.exactSize = a.draftSize
+		}
+	}
 	if e.outputFormat == "gif" || e.outputFormat == "svg" {
 		e.outputFormat = "png"
 	}
@@ -52,10 +68,14 @@ func (a *App) loadMarkup(read func() ([]byte, error), direct bool) {
 			source, mime, size, err = generation.PrepareMarkupSource(data)
 		}
 		var picture *ui.Bitmap
+		var baseBitmap *ui.Bitmap
 		var dataURL string
 		if err == nil {
 			picture, err = ui.DecodeBitmap(source)
 			dataURL = generation.DataURL(source, mime)
+		}
+		if err == nil && base != "" {
+			baseBitmap, err = decodeMarkupBase(base, dataURL)
 		}
 		return func() {
 			if a.markup != e || !a.previewOpen {
@@ -70,6 +90,7 @@ func (a *App) loadMarkup(read func() ([]byte, error), direct bool) {
 				return
 			}
 			e.source, e.picture, e.size = dataURL, picture, size
+			e.baseBitmap = baseBitmap
 		}
 	})
 }
@@ -129,8 +150,9 @@ func (a *App) markupTools(c *ui.Context, e *markupEditor) {
 			e.strokes = append(e.strokes, s)
 			e.pointCount += len(s.Points)
 		}
-		if quietButton(c, "markup-clear", "清空").Label("清空标注").Height(32).Padding(4, 8).Disabled(e.busy || len(e.strokes) == 0).Clicked() {
+		if quietButton(c, "markup-clear", "清空").Label("清空标注").Height(32).Padding(4, 8).Disabled(e.busy || (len(e.strokes) == 0 && e.baseMarkup == "")).Clicked() {
 			e.strokes, e.redo, e.pointCount = nil, nil, 0
+			e.baseMarkup, e.baseBitmap = "", nil
 			e.problem = ""
 		}
 	})
@@ -139,6 +161,9 @@ func (a *App) markupTools(c *ui.Context, e *markupEditor) {
 func (a *App) markupInstructions(c *ui.Context, e *markupEditor) {
 	ui.Text(c, "圈出要改的位置").FontSize(textSize(c, 16)).FontWeight(600)
 	ui.Text(c, "用红色标注位置，再写下修改要求。").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	if e.baseMarkup != "" {
+		ui.Text(c, "已保留原标注，可追加或清空。").FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	}
 	ui.TextArea(c.Key("markup-prompt"), &e.prompt).Label("标注修改要求").Placeholder("例如：把红圈内的房子改成木屋，保留其余画面。").Lines(4, 8).MinHeight(128).FillWidth().Padding(12).Disabled(e.busy)
 	labels, _, choices := a.modelChoices()
 	current := ""
@@ -169,7 +194,11 @@ func (a *App) markupInstructions(c *ui.Context, e *markupEditor) {
 		}
 	}
 	if e.picture != nil {
-		ui.Text(c, fmt.Sprintf("原图 %d × %d px · %d 处标注", e.size.X, e.size.Y, len(e.strokes))).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		status := fmt.Sprintf("%d 处标注", len(e.strokes))
+		if e.baseMarkup != "" {
+			status = "已保留原标注"
+		}
+		ui.Text(c, fmt.Sprintf("原图 %d × %d px · %s", e.size.X, e.size.Y, status)).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	}
 	if size, err := e.requestSize(); err == nil {
 		label := "输出尺寸：自动"
@@ -211,7 +240,11 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 				ratio = "原图比例"
 			}
 			options := append([]string{"自动", "原图比例"}, ratios...)
-			if ui.Select(c.Key("markup-ratio"), &ratio, options).Label("标注编辑画面比例").FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() {
+			if e.exactSize != "" {
+				ratio, options = "沿用", append([]string{"沿用"}, options...)
+			}
+			if ui.Select(c.Key("markup-ratio"), &ratio, options).Label("标注编辑画面比例").FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() && ratio != "沿用" {
+				e.exactSize = ""
 				switch ratio {
 				case "自动":
 					e.ratio, e.resolution = "auto", "auto"
@@ -237,7 +270,11 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 					options = append(options, strings.ToUpper(value))
 				}
 			}
-			if ui.Select(c.Key("markup-resolution"), &resolution, options).Label("标注编辑分辨率").FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() {
+			if e.exactSize != "" {
+				resolution, options = "沿用", append([]string{"沿用"}, options...)
+			}
+			if ui.Select(c.Key("markup-resolution"), &resolution, options).Label("标注编辑分辨率").FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() && resolution != "沿用" {
+				e.exactSize = ""
 				if resolution == "自动" {
 					e.ratio, e.resolution = "auto", "auto"
 				} else {
@@ -253,6 +290,13 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 
 // Output dimensions never resize the source or its annotation coordinate space.
 func (e *markupEditor) requestSize() (string, error) {
+	if e.exactSize != "" {
+		var w, h int
+		if _, err := fmt.Sscanf(e.exactSize, "%dx%d", &w, &h); err != nil || fmt.Sprintf("%dx%d", w, h) != e.exactSize || w < 256 || h < 256 || w > 8192 || h > 8192 || w%16 != 0 || h%16 != 0 {
+			return "", fmt.Errorf("原输出尺寸无效，请重新选择画面比例或分辨率。")
+		}
+		return e.exactSize, nil
+	}
 	if e.ratio == "auto" && e.resolution == "auto" {
 		return "auto", nil
 	}
@@ -296,7 +340,7 @@ func (a *App) markupActions(c *ui.Context, e *markupEditor) {
 
 func (e *markupEditor) canSubmit() bool {
 	_, sizeErr := e.requestSize()
-	return sizeErr == nil && !e.busy && !e.drawing && e.picture != nil && len(e.strokes) > 0 && strings.TrimSpace(e.prompt) != "" && len(utf16.Encode([]rune(e.prompt))) <= 20000 && e.providerID != "" && e.model != ""
+	return sizeErr == nil && !e.busy && !e.drawing && e.picture != nil && (len(e.strokes) > 0 || e.baseMarkup != "") && strings.TrimSpace(e.prompt) != "" && len(utf16.Encode([]rune(e.prompt))) <= 20000 && e.providerID != "" && e.model != ""
 }
 
 func (a *App) submitMarkup(e *markupEditor) {
@@ -318,10 +362,8 @@ func (a *App) submitMarkup(e *markupEditor) {
 		}
 	}
 	a.run(func() func() {
-		data, err := generation.RenderMarkupPNG(e.size, strokes)
-		if err == nil {
-			args.Markup = generation.DataURL(data, "image/png")
-		}
+		markup, err := renderMarkupOverlay(e.size, strokes, e.baseMarkup)
+		args.Markup = markup
 		return func() {
 			if a.markup != e || !a.previewOpen {
 				return
@@ -376,6 +418,9 @@ func (a *App) markupCanvas(c *ui.Context, e *markupEditor) {
 			drawTransparencyGrid(p, target, r, base, shade)
 			p.Image(e.picture, target, ui.FillBox)
 			p.Clip(target, 0, func() {
+				if e.baseBitmap != nil {
+					p.Image(e.baseBitmap, target, ui.FillBox)
+				}
 				for _, s := range e.strokes {
 					drawMarkup(p, target, iw, s)
 				}

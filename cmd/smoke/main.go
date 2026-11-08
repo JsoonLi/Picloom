@@ -460,11 +460,11 @@ func run() error {
 	if err = c.act("generate", "press", ""); err != nil {
 		return err
 	}
-	retry := ""
-	if err = c.wait("失败重试", func(n []node) bool {
+	redo := ""
+	if err = c.wait("失败重做", func(n []node) bool {
 		for _, v := range n {
-			if strings.HasPrefix(v.Key, "retry-") {
-				retry = v.Key
+			if strings.HasPrefix(v.Key, "redo-") {
+				redo = v.Key
 				return true
 			}
 		}
@@ -472,11 +472,40 @@ func run() error {
 	}); err != nil {
 		return err
 	}
-	if err = c.act(retry, "press", ""); err != nil {
+	beforeRedo := requests.Load()
+	if err = c.act(redo, "press", ""); err != nil {
 		return err
 	}
-	if err = c.wait("重试成功", func(n []node) bool { return len(loadHistory()) == 4 }); err != nil {
+	if err = c.wait("重做草稿恢复", func(nodes []node) bool {
+		prompt := find(nodes, "prompt")
+		if prompt == nil || prompt.Value != "fail-once 原生重试" || find(nodes, redo) != nil {
+			return false
+		}
+		refs := 0
+		for _, n := range nodes {
+			if strings.HasPrefix(n.Key, "remove-reference-") {
+				refs++
+			}
+		}
+		return refs == edited.ReferenceCount
+	}); err != nil {
 		return err
+	}
+	if requests.Load() != beforeRedo {
+		return errors.New("重做不应自动发送请求")
+	}
+	const redonePrompt = "fail-once 修改后的原生重做"
+	if err = c.act("prompt", "setValue", redonePrompt); err != nil {
+		return err
+	}
+	if err = c.act("generate", "press", ""); err != nil {
+		return err
+	}
+	if err = c.wait("修改后重做成功", func(n []node) bool { return len(loadHistory()) == 4 }); err != nil {
+		return err
+	}
+	if loadHistory()[0].Prompt != redonePrompt {
+		return errors.New("重做没有使用修改后的提示词")
 	}
 	if err = c.act("history-search", "setValue", "旧版合成作品"); err != nil {
 		return err
@@ -586,7 +615,7 @@ func run() error {
 		return err
 	}
 	process = nil
-	fmt.Printf("PASS native E2E: legacy data, Chinese prompt, settings retention, generation, clipboard, multipart, persisted references, favorite, search, preview, retry, theme, deletion and restart; %d local requests.\n", requests.Load())
+	fmt.Printf("PASS native E2E: legacy data, Chinese prompt, settings retention, generation, clipboard, multipart, persisted references, favorite, search, preview, editable redo, theme, deletion and restart; %d local requests.\n", requests.Load())
 	return nil
 }
 

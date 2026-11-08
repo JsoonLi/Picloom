@@ -317,11 +317,23 @@ func TestMarkupZoomPanAndSubmissionPreserveSourceAndStudioDraft(t *testing.T) {
 	b.mu.Lock()
 	b.fail = nil
 	b.mu.Unlock()
-	click(t, tt, "重试")
+	click(t, tt, "重做")
 	settle(a, tt)
-	retry := <-b.generateStarted
-	if retry.Markup != args.Markup || retry.ReferenceImages[0] != args.ReferenceImages[0] {
-		t.Fatal("retry lost markup")
+	if len(b.generateStarted) != 0 || a.draftMarkup != args.Markup || a.requestSize() != args.Size || a.prompt != args.Prompt {
+		t.Fatal("redo must restore markup and automatic size without sending")
+	}
+	click(t, tt, "标注编辑参考图 参考图 1")
+	settle(a, tt)
+	if a.markup == nil || a.markup.baseMarkup != args.Markup || a.markup.baseBitmap == nil || a.markup.prompt != args.Prompt {
+		t.Fatal("restored annotations must remain visible and editable")
+	}
+	click(t, tt, "取消标注")
+	a.prompt = "重做修改后的说明"
+	click(t, tt, "开始生成")
+	settle(a, tt)
+	redone := <-b.generateStarted
+	if redone.Markup != args.Markup || redone.ReferenceImages[0] != args.ReferenceImages[0] || redone.Prompt != "重做修改后的说明" {
+		t.Fatal("redo lost markup or edited instruction")
 	}
 }
 

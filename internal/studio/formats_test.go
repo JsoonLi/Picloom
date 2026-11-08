@@ -157,12 +157,12 @@ func TestFailedTaskKeepsCompleteErrorReadableWithoutChangingRequest(t *testing.T
 	a.jobs = []*job{task}
 	tt.Frame()
 	details, detailsOK := tt.Find("生成失败原因")
-	retry, retryOK := tt.Find("重试")
+	redo, redoOK := tt.Find("重做")
 	if !detailsOK {
 		t.Fatal("complete error details are not accessible")
 	}
-	if !retryOK || details.Y+details.H > retry.Y {
-		t.Fatal("error details overlap retry action")
+	if !redoOK || details.Y+details.H > redo.Y {
+		t.Fatal("error details overlap redo action")
 	}
 	click(t, tt, "生成失败原因")
 	tt.Type("不能修改错误")
@@ -170,8 +170,8 @@ func TestFailedTaskKeepsCompleteErrorReadableWithoutChangingRequest(t *testing.T
 	if task.Progress.Error != message || task.Args.OutputFormat != "gif" || task.Args.Prompt != "原有提示词" {
 		t.Fatal("diagnostic view changed the error or request")
 	}
-	if _, ok := tt.Find("重试"); !ok {
-		t.Fatal("retry must remain available")
+	if _, ok := tt.Find("重做"); !ok {
+		t.Fatal("redo must remain available")
 	}
 }
 

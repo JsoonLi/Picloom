@@ -1,7 +1,7 @@
 {
   "name": "picloom",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Native AI image generation studio built with Go and MyGo",
   "author": "Picloom",
   "scripts": {

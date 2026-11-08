@@ -14,6 +14,9 @@ func (a *App) requestSize() string {
 	if a.outputFormat == "gif" {
 		return a.gifSize
 	}
+	if a.draftSize != "" {
+		return a.draftSize
+	}
 	return computeSize(a.ratio, a.resolution)
 }
 

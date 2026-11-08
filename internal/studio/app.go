@@ -46,6 +46,7 @@ type App struct {
 	config                                       domain.Config
 	prompt, providerID, model, ratio, resolution string
 	outputFormat                                 string
+	draftSize, draftMarkup                       string
 	gifSize                                      string
 	gifFrameCount, gifFrameDurationMS            int
 	preferencesSaving                            bool

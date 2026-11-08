@@ -76,15 +76,21 @@ func TestSubmitClearsSubmittedPromptAndReferences(t *testing.T) {
 				b.mu.Lock()
 				b.fail = nil
 				b.mu.Unlock()
-				click(t, tt, "重试")
-				retry := <-b.generateStarted
-				if len(retry.ReferenceImages) != 1 || retry.ReferenceImages[0] != submittedImage {
-					t.Fatal("retry lost submitted images")
+				click(t, tt, "重做")
+				settle(a, tt)
+				if len(b.generateStarted) != 0 || a.prompt != args.Prompt || len(a.references) != 1 || a.references[0].DataURL != submittedImage {
+					t.Fatal("redo must restore the failed request without sending it")
+				}
+				a.prompt = "修改后再发送"
+				click(t, tt, "开始生成")
+				redone := <-b.generateStarted
+				if redone.Prompt != "修改后再发送" || len(redone.ReferenceImages) != 1 || redone.ReferenceImages[0] != submittedImage {
+					t.Fatal("edited redo lost submitted images")
 				}
 				b.generateRelease <- struct{}{}
 				settle(a, tt)
-				if a.prompt != "下一条创作草稿" || len(a.references) != 1 || a.references[0].ID != "next" {
-					t.Fatal("retry changed the next draft")
+				if a.prompt != "" || len(a.references) != 0 {
+					t.Fatal("explicit redo submission did not clear submitted input")
 				}
 			} else if len(a.history.Items) != 1 || a.history.Items[0].Prompt != args.Prompt {
 				t.Fatal("success lost the submitted prompt")

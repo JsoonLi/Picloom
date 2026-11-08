@@ -70,6 +70,9 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 						if thumb := a.referenceThumbs[ref.ID]; thumb != nil {
 							ui.Image(c.Key("reference-image-"+ref.ID), thumb).Fill().Fit(ui.Contain).Radius(10).Border(1, c.Theme().Border).Label("标注编辑参考图 " + ref.Name).Focusable().OnClick(func() { a.openReference(ref) })
 						}
+						if a.draftMarkup != "" {
+							ui.Text(c, "含标注").Absolute().Bottom(2).Left(4).Right(4).TextAlign(ui.Center).FontSize(textSize(c, 10)).Background(c.Theme().Surface).Radius(4)
+						}
 						iconButton(c, "remove-reference-"+ref.ID, "移除参考图 "+ref.Name, "close").Absolute().Top(-7).Right(-7).Size(24, 24).Background(c.Theme().SurfaceHover).Radius(12).OnClick(func() { a.removeReference(ref.ID) })
 					})
 				}
@@ -80,6 +83,9 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 	ui.Row(c.Key("generation-summary")).FillWidth().Wrap().Gap(8).Padding(12, 0, 0, 0).Children(func() {
 		ui.Row(c).Wrap().Gap(8).Children(func() {
 			size := strings.ReplaceAll(a.requestSize(), "x", " × ") + " px"
+			if a.requestSize() == "auto" {
+				size = "自动尺寸"
+			}
 			price := a.priceLabel()
 			if a.outputFormat == "gif" {
 				size += " / 帧"
@@ -113,11 +119,15 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 	ui.Row(c.Key("generation-actions")).FillWidth().Wrap().Gap(8).Padding(composerToolbarPadding).Background(c.Theme().Surface).Children(func() {
 		ui.Row(c.Key("reference-actions")).Gap(4).Children(func() {
-			refs := ui.Button(c.Key("open-images"), "").Label("添加参考图").Height(composerControlHeight).Width(128).Padding(4, 12).Radius(8).Disabled(a.importing || len(a.references) >= 4)
+			refs := ui.Button(c.Key("open-images"), "").Label("添加参考图").Height(composerControlHeight).Width(128).Padding(4, 12).Radius(8).Disabled(a.importing || len(a.references) >= 4 || a.draftMarkup != "")
 			refs.Children(func() {
 				ui.Row(c).Center().Gap(8).Children(func() {
 					ui.Icon(c, icons["image"]).Size(16, 16)
-					ui.Text(c, fmt.Sprintf("参考图 %d/4", len(a.references))).FontSize(textSize(c, 14)).SingleLine()
+					limit := 4
+					if a.draftMarkup != "" {
+						limit = 1
+					}
+					ui.Text(c, fmt.Sprintf("参考图 %d/%d", len(a.references), limit)).FontSize(textSize(c, 14)).SingleLine()
 				})
 			})
 			if refs.Clicked() {
@@ -132,6 +142,7 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 		if modelSelect.Changed() {
 			choice := choices[current]
 			a.providerID, a.model = choice.providerID, choice.model
+			a.draftSize = ""
 			a.resolution = ""
 			a.reconcileSelection()
 			a.savePreferences()
@@ -146,7 +157,12 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			if narrow {
 				ratioWidth, resolutionWidth = 80, 72
 			}
-			if ui.Select(c.Key("ratio"), &a.ratio, ratios).Label("画面比例").Width(ratioWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+			ratio, ratioOptions := a.ratio, ratios
+			if a.draftSize != "" {
+				ratio, ratioOptions = "沿用", append([]string{"沿用"}, ratios...)
+			}
+			if ui.Select(c.Key("ratio"), &ratio, ratioOptions).Label("画面比例").Width(ratioWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && ratio != "沿用" {
+				a.ratio, a.draftSize = ratio, ""
 				a.savePreferences()
 			}
 			resolutions := []string{"2K", "4K"}
@@ -157,8 +173,12 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 				}
 			}
 			resolution := strings.ToUpper(a.resolution)
-			if ui.Select(c.Key("resolution"), &resolution, resolutions).Label("分辨率").Width(resolutionWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+			if a.draftSize != "" {
+				resolution, resolutions = "沿用", append([]string{"沿用"}, resolutions...)
+			}
+			if ui.Select(c.Key("resolution"), &resolution, resolutions).Label("分辨率").Width(resolutionWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && resolution != "沿用" {
 				a.resolution = strings.ToLower(resolution)
+				a.draftSize = ""
 				a.savePreferences()
 			}
 		})
@@ -169,7 +189,11 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 		if format == "" {
 			format = "默认格式"
 		}
-		if ui.Select(c.Key("output-format"), &format, []string{"默认格式", "PNG", "JPEG", "WebP", "GIF", "SVG"}).Label("输出格式").Width(104).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+		formats := []string{"默认格式", "PNG", "JPEG", "WebP", "GIF", "SVG"}
+		if a.draftMarkup != "" {
+			formats = formats[:4]
+		}
+		if ui.Select(c.Key("output-format"), &format, formats).Label("输出格式").Width(104).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
 			a.outputFormat = strings.ToLower(format)
 			if format == "默认格式" {
 				a.outputFormat = ""
@@ -216,17 +240,22 @@ func (a *App) modelChoices() ([]string, string, map[string]modelChoice) {
 	return labels, current, choices
 }
 func (a *App) canGenerate() bool {
-	return strings.TrimSpace(a.prompt) != "" && utf8.RuneCountInString(a.prompt) <= 20000 && a.provider() != nil && a.model != "" && !a.importing && a.gifOptionsProblem() == ""
+	return strings.TrimSpace(a.prompt) != "" && utf8.RuneCountInString(a.prompt) <= 20000 && a.provider() != nil && a.model != "" && !a.importing && a.gifOptionsProblem() == "" && (a.draftMarkup == "" || (a.outputFormat != "svg" && a.outputFormat != "gif"))
 }
 func (a *App) clearInput() {
 	a.referenceEpoch++
 	a.importing = false
 	a.prompt = ""
+	a.draftSize, a.draftMarkup = "", ""
 	a.references = nil
 	a.referenceThumbs = map[string]*ui.Bitmap{}
 }
 
 func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
+	if a.draftMarkup != "" {
+		a.problem = "标注编辑仅支持一张参考图，请先移除当前图片后再添加。"
+		return
+	}
 	if a.importing {
 		return
 	}
@@ -294,6 +323,12 @@ func (a *App) removeReference(id string) {
 	for i, ref := range a.references {
 		if ref.ID == id {
 			a.references = append(a.references[:i], a.references[i+1:]...)
+			if len(a.references) == 0 {
+				if a.draftMarkup != "" && a.draftSize == "auto" {
+					a.draftSize = ""
+				}
+				a.draftMarkup = ""
+			}
 			delete(a.referenceThumbs, id)
 			return
 		}
@@ -301,7 +336,7 @@ func (a *App) removeReference(id string) {
 }
 
 func (a *App) generate() {
-	args := domain.GenerateArgs{JobID: newID(), Prompt: strings.TrimRight(a.prompt, "\n"), ProviderID: a.providerID, Model: a.model, Size: a.requestSize(), OutputFormat: a.outputFormat, ReferenceImages: []string{}}
+	args := domain.GenerateArgs{JobID: newID(), Prompt: strings.TrimRight(a.prompt, "\n"), ProviderID: a.providerID, Model: a.model, Size: a.requestSize(), OutputFormat: a.outputFormat, Markup: a.draftMarkup, ReferenceImages: []string{}}
 	if a.outputFormat == "gif" {
 		args.FrameCount = a.gifFrameCount
 		args.FrameDurationMS = a.gifFrameDurationMS

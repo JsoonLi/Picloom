@@ -185,12 +185,7 @@ func (a *App) jobCard(c *ui.Context, task *job) {
 		if task.Progress.Status == "error" {
 			ui.TextArea(c.Key("job-error-"+task.Args.JobID), &task.Progress.Error).ReadOnly(true).Label("生成失败原因").Tooltip(task.Progress.Error).FillWidth().Height(64).Padding(0).Border(0, ui.Transparent).Background(ui.Transparent).TextColor(c.Theme().Danger)
 			ui.Row(c).Wrap().Gap(6).Children(func() {
-				ui.Button(c.Key("retry-"+task.Args.JobID), "重试").Height(32).Padding(4, 10).OnClick(func() {
-					args := task.Args
-					args.JobID = newID()
-					a.removeJob(task)
-					a.startJob(args, task.ProviderName)
-				})
+				ui.Button(c.Key("redo-"+task.Args.JobID), "重做").Height(32).Padding(4, 10).Disabled(a.importing).OnClick(func() { a.redoJob(task) })
 				ui.Button(c.Key("dismiss-job-"+task.Args.JobID), "移除任务").Height(32).Padding(4, 10).OnClick(func() { a.removeJob(task) })
 			})
 		} else {
@@ -419,7 +414,11 @@ func (a *App) openArtwork(record domain.ImageRecord) {
 
 func (a *App) openReference(reference domain.Reference) {
 	a.beginPreview(reference.Name, nil, nil, 0, 0)
-	a.loadMarkup(func() ([]byte, error) { return referenceBytes(reference) }, true)
+	base := ""
+	if len(a.references) == 1 && a.references[0].ID == reference.ID {
+		base = a.draftMarkup
+	}
+	a.loadMarkupWithBase(func() ([]byte, error) { return referenceBytes(reference) }, true, base)
 }
 
 // releasePreview drops the full-resolution preview once the viewer closes
@@ -595,56 +594,27 @@ func (a *App) perform(operation func() (string, error)) {
 }
 
 func (a *App) reuse(record domain.ImageRecord) {
-	if a.importing {
-		return
+	args := domain.GenerateArgs{Prompt: record.Prompt, ProviderID: record.ProviderID, Model: record.Model, Size: record.Size, FrameCount: record.GIFFrameCount, FrameDurationMS: record.GIFFrameDurationMS}
+	if record.MIMEType == "image/gif" {
+		args.OutputFormat = "gif"
 	}
-	a.referenceEpoch++
-	epoch := a.referenceEpoch
-	a.importing = true
-	a.run(func() func() {
+	if record.MIMEType == "image/svg+xml" {
+		args.OutputFormat = "svg"
+	}
+	if args.OutputFormat != "gif" {
+		ratio, resolution := generation.FindSizeCombo(record.Size)
+		args.Size = computeSize(ratio, resolution)
+	}
+	a.restoreGenerationDraft(args, func() ([]domain.Reference, error) {
 		refs := []domain.Reference{}
-		thumbs := make(map[string]*ui.Bitmap)
-		var err error
 		for i := 0; i < record.ReferenceCount; i++ {
-			var data []byte
-			data, err = a.backend.ReadReference(record.ID, i)
+			data, err := a.backend.ReadReference(record.ID, i)
 			if err != nil {
-				break
+				return nil, err
 			}
 			ref := domain.Reference{ID: newID(), Name: fmt.Sprintf("参考图 %d", i+1), DataURL: "data:" + http.DetectContentType(data) + ";base64," + base64.StdEncoding.EncodeToString(data)}
-			thumbs[ref.ID], err = thumbnail(data, referenceThumbSize, referenceThumbSize)
-			if err != nil {
-				break
-			}
 			refs = append(refs, ref)
 		}
-		return func() {
-			if epoch != a.referenceEpoch {
-				return
-			}
-			a.importing = false
-			if err != nil {
-				a.problem = err.Error()
-				return
-			}
-			a.prompt, _ = compactPrompt(record.Prompt, [2]int{})
-			a.providerID = record.ProviderID
-			a.model = record.Model
-			a.outputFormat = ""
-			if record.MIMEType == "image/gif" {
-				a.outputFormat = "gif"
-				a.reuseGIFSettings(record)
-			}
-			if record.MIMEType == "image/svg+xml" {
-				a.outputFormat = "svg"
-			}
-			a.references = refs
-			a.referenceThumbs = thumbs
-			a.ratio, a.resolution = generation.FindSizeCombo(record.Size)
-			a.reconcileSelection()
-			a.savePreferences()
-			a.loadPricing()
-			a.showNotice("已复用提示词、参考图和生成参数。")
-		}
-	})
+		return refs, nil
+	}, nil)
 }

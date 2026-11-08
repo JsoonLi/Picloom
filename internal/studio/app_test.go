@@ -151,13 +151,33 @@ func (b *testBackend) Delete(id string) error {
 
 type testDesktop struct {
 	domain.Desktop
-	refs        []domain.Reference
-	exportSaved bool
-	copied      string
-	theme       string
+	updatesMu    sync.Mutex
+	updates      domain.UpdateStatus
+	updateChecks int
+	refs         []domain.Reference
+	exportSaved  bool
+	copied       string
+	theme        string
 }
 
-func (d *testDesktop) DataDir() string                                       { return "isolated-test-data" }
+func (d *testDesktop) DataDir() string { return "isolated-test-data" }
+func (d *testDesktop) UpdateStatus() domain.UpdateStatus {
+	d.updatesMu.Lock()
+	defer d.updatesMu.Unlock()
+	return d.updates
+}
+func (d *testDesktop) CheckForUpdates() error {
+	d.updatesMu.Lock()
+	defer d.updatesMu.Unlock()
+	d.updateChecks++
+	return nil
+}
+func (d *testDesktop) SetUpdatePreferences(checks, downloads bool) (domain.UpdateStatus, error) {
+	d.updatesMu.Lock()
+	defer d.updatesMu.Unlock()
+	d.updates.AutomaticChecks, d.updates.AutomaticDownloads = checks, downloads
+	return d.updates, nil
+}
 func (d *testDesktop) OpenImages(int) ([]domain.Reference, error)            { return d.refs, nil }
 func (d *testDesktop) PasteImages(int) ([]domain.Reference, error)           { return d.refs, nil }
 func (d *testDesktop) ImportFiles([]string, int) ([]domain.Reference, error) { return d.refs, nil }

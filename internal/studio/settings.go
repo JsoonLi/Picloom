@@ -55,9 +55,9 @@ func (a *App) settings(c *ui.Context, narrow bool) {
 				}
 			})
 			ui.Row(c.Key("settings-sections")).FillWidth().Gap(4).Padding(4).Background(toolbarColor(c)).Radius(12).Children(func() {
-				for _, tab := range []string{"提供商", "网络", "外观"} {
+				for _, tab := range []string{"提供商", "网络", "外观", "更新"} {
 					choice := tab
-					button := quietButton(c, "settings-tab-"+tab, tab).Grow(1).MinWidth(0).Height(32).Padding(4, 12).Radius(8)
+					button := quietButton(c, "settings-tab-"+tab, tab).Grow(1).MinWidth(0).Height(32).Padding(4, 6).Radius(8)
 					if a.settingsTab == tab {
 						button.Background(c.Theme().Surface).TextColor(c.Theme().Text).Border(1, c.Theme().Border)
 					} else {
@@ -65,6 +65,9 @@ func (a *App) settings(c *ui.Context, narrow bool) {
 					}
 					if button.Clicked() {
 						a.settingsTab = choice
+						if choice == "更新" {
+							a.RefreshUpdates()
+						}
 					}
 				}
 			})
@@ -90,6 +93,8 @@ func (a *App) settings(c *ui.Context, narrow bool) {
 						directory := a.desktop.DataDir()
 						ui.TextInput(c.Key("data-directory"), &directory).Label("数据目录").ReadOnly(true).Height(36).FillWidth().Background(toolbarColor(c))
 					})
+				case "更新":
+					a.updateSettings(c)
 				}
 			})
 			ui.Column(c.Key("settings-footer")).FillWidth().Gap(8).Padding(12, 0, 0, 0).Border(1, c.Theme().Border).BorderWidth(1, 0, 0, 0).Children(func() {
@@ -103,6 +108,8 @@ func (a *App) settings(c *ui.Context, narrow bool) {
 					a.networkSaveButton(c)
 				case "外观":
 					a.appearanceSaveButton(c)
+				case "更新":
+					a.updateCheckButton(c)
 				default:
 					a.providerSaveButton(c)
 				}

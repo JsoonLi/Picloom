@@ -2,7 +2,7 @@
   "name": "Picloom",
   "slug": "picloom",
   "identifier": "com.image2ai.desktop",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "绘织 · 原生 AI 图像创作工作室",
   "icon": "build/icon-mac.png",
   "out": "dist-native",
@@ -21,5 +21,10 @@
     "displayName": "Picloom · 绘织",
     "installDirName": "Image2AI",
     "installerInclude": "scripts/windows-upgrade.nsh"
+  },
+  "updates": {
+    "publicKey": "qHSpGohZNwWcI39S83ldU13j0dNXMt1KSCxPzZCOzF4=",
+    "github": "JsoonLi/Picloom",
+    "deltas": 0
   }
 }

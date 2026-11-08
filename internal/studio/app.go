@@ -35,6 +35,7 @@ type job struct {
 type App struct {
 	backend                                      domain.Backend
 	desktop                                      domain.Desktop
+	updates                                      *updatePanel
 	ctx                                          context.Context
 	cancel                                       context.CancelFunc
 	windowMu                                     sync.RWMutex

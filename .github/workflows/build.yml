@@ -111,19 +111,26 @@ jobs:
         run: go run ./cmd/smoke -app "${{ matrix.e2e_executable }}"
 
       - name: Build production installer without automation
-        run: go tool mygo build -platform "${{ matrix.target }}"
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          test -n "$MYGO_UPDATER_PRIVATE_KEY" || { echo "::error::Missing updater signing secret"; exit 1; }
+          go tool mygo build -platform "${{ matrix.target }}"
 
       - name: Smoke test the final production executable
         run: go run ./cmd/smoke -release -app "${{ matrix.executable }}" -out test-results/native-release
 
-      - name: Collect verified installer
+      - name: Collect verified installer and signed update
         run: go run ./cmd/artifacts -platform "${{ matrix.target }}"
 
       - name: Upload verified installer
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Picloom-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist-native/releases/*.${{ matrix.extension }}
+          path: |
+            dist-native/releases/*.${{ matrix.extension }}
+            dist-native/releases/*.tar.gz
+            dist-native/releases/update-*.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -180,6 +187,12 @@ jobs:
             "release-assets/Picloom-Setup-${version}-x64.exe"
             "release-assets/Picloom-${version}-macOS-x64.dmg"
             "release-assets/Picloom-${version}-macOS-arm64.dmg"
+            "release-assets/picloom-${version}-windows-amd64.tar.gz"
+            "release-assets/picloom-${version}-darwin-amd64.tar.gz"
+            "release-assets/picloom-${version}-darwin-arm64.tar.gz"
+            "release-assets/update-windows-amd64.json"
+            "release-assets/update-darwin-amd64.json"
+            "release-assets/update-darwin-arm64.json"
           )
           for asset in "${assets[@]}"; do
             test -s "$asset"

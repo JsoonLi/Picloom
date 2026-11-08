@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type Provider struct {
 	DefaultResolution string   `json:"defaultResolution,omitempty"`
@@ -129,6 +132,16 @@ type Backend interface {
 	ReadReference(string, int) ([]byte, error)
 }
 
+// UpdateStatus is a snapshot of the native updater for the preferences UI.
+type UpdateStatus struct {
+	Version            string
+	Supported          bool
+	AutomaticChecks    bool
+	AutomaticDownloads bool
+	AvailableVersion   string
+	LastCheck          time.Time
+}
+
 // Desktop contains OS operations only; UI never receives arbitrary disk access.
 type Desktop interface {
 	OpenImages(remaining int) ([]Reference, error)
@@ -139,4 +152,7 @@ type Desktop interface {
 	ExportImage(string) (bool, error)
 	SetTheme(string)
 	DataDir() string
+	UpdateStatus() UpdateStatus
+	SetUpdatePreferences(checks, downloads bool) (UpdateStatus, error)
+	CheckForUpdates() error
 }

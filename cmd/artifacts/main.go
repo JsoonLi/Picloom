@@ -14,7 +14,10 @@ import (
 	"runtime"
 )
 
-type metadata struct{ Name, Slug, Version, Out string }
+type metadata struct {
+	Name, Slug, Version, Out string
+	Updates                  *struct{ PublicKey, GitHub string }
+}
 
 func main() {
 	target := flag.String("platform", runtime.GOOS+"/"+runtime.GOARCH, "verified native platform")
@@ -88,6 +91,11 @@ func collect(root, target string) error {
 	output := filepath.Join(root, m.Out, "releases")
 	if err = os.MkdirAll(output, 0755); err != nil {
 		return err
+	}
+	if m.Updates != nil {
+		if err := collectUpdate(root, m, target, output); err != nil {
+			return err
+		}
 	}
 	temporary, err := os.CreateTemp(output, ".installer-*")
 	if err != nil {

@@ -9,6 +9,9 @@ func TestInstanceDetectionIncludesLegacyDevelopmentHost(t *testing.T) {
 		want    bool
 	}{
 		{"installed", processInfo{Name: "Image2AI.exe", PID: 2}, true},
+		{"renamed Windows app", processInfo{Name: "Picloom.exe", PID: 2}, true},
+		{"renamed macOS app", processInfo{Name: "Picloom", PID: 2}, true},
+		{"renamed self", processInfo{Name: "Picloom.exe", PID: 1}, false},
 		{"development", processInfo{Name: "electron.exe", PID: 3, CommandLine: `electron.exe C:/dev/Image2AI`}, true},
 		{"mac development", processInfo{Name: "Electron", PID: 4, CommandLine: `/Applications/Electron.app/Contents/MacOS/Electron /code/Image2AI`}, true},
 		{"unrelated editor", processInfo{Name: "electron.exe", PID: 5, CommandLine: `electron.exe /code/editor`}, false},

@@ -12,8 +12,9 @@ func conflictingInstance(p processInfo, self int) bool {
 	if p.PID == self {
 		return false
 	}
-	if strings.EqualFold(p.Name, "Image2AI.exe") || strings.EqualFold(p.Name, "Image2AI") {
+	if strings.EqualFold(p.Name, "Picloom.exe") || strings.EqualFold(p.Name, "Picloom") || strings.EqualFold(p.Name, "Image2AI.exe") || strings.EqualFold(p.Name, "Image2AI") {
 		return true
 	}
-	return (strings.EqualFold(p.Name, "electron.exe") || strings.EqualFold(p.Name, "Electron")) && strings.Contains(strings.ToLower(p.CommandLine), "image2ai")
+	command := strings.ToLower(p.CommandLine)
+	return (strings.EqualFold(p.Name, "electron.exe") || strings.EqualFold(p.Name, "Electron")) && (strings.Contains(command, "image2ai") || strings.Contains(command, "picloom"))
 }

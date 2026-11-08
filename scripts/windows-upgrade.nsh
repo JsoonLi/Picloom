@@ -20,9 +20,9 @@
   ; MyGo has already committed the native executable and uninstaller.
   ; Copy its current metadata to the established uninstall key.
   ReadRegStr $R0 HKCU "${NATIVE_KEY}" "DisplayVersion"
-  WriteRegStr HKCU "${LEGACY_KEY}" "DisplayName" "Image2AI"
+  WriteRegStr HKCU "${LEGACY_KEY}" "DisplayName" "Picloom · 绘织"
   WriteRegStr HKCU "${LEGACY_KEY}" "DisplayVersion" $R0
-  WriteRegStr HKCU "${LEGACY_KEY}" "DisplayIcon" '$\"$INSTDIR\Image2AI.exe$\"'
+  WriteRegStr HKCU "${LEGACY_KEY}" "DisplayIcon" '$\"$INSTDIR\Picloom.exe$\"'
   WriteRegStr HKCU "${LEGACY_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${LEGACY_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegStr HKCU "${LEGACY_KEY}" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
@@ -33,7 +33,15 @@
   DeleteRegKey HKCU "${LEGACY_KEY}"
   DeleteRegKey HKCU "${NATIVE_KEY}"
   SetRegView 64
+  ; Replace the old native shortcuts with the renamed application.
+  IfFileExists "$INSTDIR\Image2AI.exe" 0 picloom_shortcuts_done
+  Delete "$SMPROGRAMS\Image2AI.lnk"
+  IfFileExists "$DESKTOP\Image2AI.lnk" 0 +3
+  Delete "$DESKTOP\Image2AI.lnk"
+  CreateShortCut "$DESKTOP\Picloom · 绘织.lnk" "$INSTDIR\Picloom.exe"
+  picloom_shortcuts_done:
   ; Remove only known obsolete Electron files, never arbitrary directories.
+  Delete "$INSTDIR\Image2AI.exe"
   Delete "$INSTDIR\Uninstall Image2AI.exe"
   Delete "$INSTDIR\resources\app.asar"
   Delete "$INSTDIR\chrome_100_percent.pak"

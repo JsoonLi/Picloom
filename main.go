@@ -23,13 +23,13 @@ func main() {
 }
 
 func run() error {
-	if root := os.Getenv("IMAGE2AI_USER_DATA"); root != "" {
-		absolute, err := filepath.Abs(root)
-		if err != nil {
-			return fmt.Errorf("测试数据目录无效：%w", err)
-		}
-		mygo.App.SetPath(mygo.PathUserData, absolute)
+	root, err := userDataRoot(os.Getenv("IMAGE2AI_USER_DATA"))
+	if err != nil {
+		return fmt.Errorf("数据目录无效：%w", err)
 	}
+	// Keep the established data and lock location when the app is renamed.
+	mygo.App.SetPath(mygo.PathUserData, root)
+	mygo.App.SetName("Picloom")
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
 	}
@@ -58,7 +58,7 @@ func run() error {
 	mygo.App.WhenReady(func() {
 		fail := func(err error) {
 			rootErr = err
-			mygo.Dialog.Error("Image2AI 无法启动", err.Error())
+			mygo.Dialog.Error("Picloom 无法启动", err.Error())
 			mygo.App.Quit()
 		}
 		root, err := mygo.App.Path(mygo.PathUserData)
@@ -92,7 +92,7 @@ func run() error {
 		if runtime.GOOS == "darwin" {
 			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu}}))
 		}
-		window = mygo.NewWindow(mygo.WindowOptions{Title: "Image2AI", Width: 1280, Height: 880, MinWidth: 740, MinHeight: 560, StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, HideWindowButtons: runtime.GOOS == "windows", Content: ui.View(studioApp.View)})
+		window = mygo.NewWindow(mygo.WindowOptions{Title: "Picloom · 绘织", Width: 1280, Height: 880, MinWidth: 740, MinHeight: 560, StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, HideWindowButtons: runtime.GOOS == "windows", Content: ui.View(studioApp.View)})
 		system.SetWindow(window)
 		studioApp.SetWindow(window)
 		mygo.App.OnWillQuit(func(_ *mygo.QuitEvent) { closeStore() })
@@ -101,4 +101,15 @@ func run() error {
 		return err
 	}
 	return rootErr
+}
+
+func userDataRoot(override string) (string, error) {
+	if override != "" {
+		return filepath.Abs(override)
+	}
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, "Image2AI"), nil
 }

@@ -1,6 +1,6 @@
 # Third-party notices
 
-Image2AI uses Go 1.27.3 and the modules pinned in go.mod/go.sum. Their original license notices are included here and packaged with the application. The native visual theme is adapted from Solid Glass; its original MIT notice is retained in solid-glass-MIT.txt.
+Picloom uses Go 1.27.3 and the modules pinned in go.mod/go.sum. Their original license notices are included here and packaged with the application. The native visual theme is adapted from Solid Glass; its original MIT notice is retained in solid-glass-MIT.txt.
 
 - MyGo v0.7.4: MyGo-LICENSE.txt
 - purego v0.11.1: purego-LICENSE.txt

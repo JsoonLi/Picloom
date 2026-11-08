@@ -156,7 +156,7 @@ func (d *Desktop) ExportImage(id string) (bool, error) {
 	if format == "jpeg" {
 		format = "jpg"
 	}
-	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: d.parent(), Title: "导出原图", DefaultPath: fmt.Sprintf("Image2AI-%s.%s", id, format), Filters: []mygo.FileFilter{{Name: strings.ToUpper(format) + " 图片", Extensions: []string{format}}}})
+	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: d.parent(), Title: "导出原图", DefaultPath: fmt.Sprintf("Picloom-%s.%s", id, format), Filters: []mygo.FileFilter{{Name: strings.ToUpper(format) + " 图片", Extensions: []string{format}}}})
 	if err != nil || path == "" {
 		return false, err
 	}

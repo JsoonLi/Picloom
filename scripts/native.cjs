@@ -37,7 +37,7 @@ switch (op) {
   case 'smoke': {
     if (!['windows/amd64', 'darwin/amd64', 'darwin/arm64'].includes(host)) { console.error('原生 smoke 当前支持 Windows x64 和 macOS x64/arm64。'); process.exit(1); }
     run(['tool', 'mygo', 'build', '-debug', '-skip-installer', '-skip-dmg', '-o', '.cache/native-e2e'], { GOFLAGS: '-tags=e2e', MYGO_INSPECTOR: '1' });
-    const executable = host.startsWith('windows/') ? '.cache/native-e2e/windows-amd64/Image2AI.exe' : `.cache/native-e2e/${host.replace('/', '-')}/Image2AI.app/Contents/MacOS/Image2AI`;
+    const executable = host.startsWith('windows/') ? '.cache/native-e2e/windows-amd64/Picloom.exe' : `.cache/native-e2e/${host.replace('/', '-')}/Picloom.app/Contents/MacOS/Picloom`;
     run(['run', './cmd/smoke', '-app', executable, ...extra], production);
     break;
   }

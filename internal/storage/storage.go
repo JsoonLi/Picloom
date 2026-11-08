@@ -67,7 +67,7 @@ func Open(root string) (*Store, error) {
 	}
 	lock, err := acquireLock(filepath.Join(canonical, ".image2ai-native.lock"))
 	if err != nil {
-		return nil, fmt.Errorf("Image2AI 数据目录正被其他进程使用，或无法锁定：%w", err)
+		return nil, fmt.Errorf("Picloom 数据目录正被其他进程使用，或无法锁定：%w", err)
 	}
 	s := &Store{root: canonical, originalRoot: absolute, lock: lock, replace: replaceFile}
 	if _, err = s.readConfig(); err == nil {

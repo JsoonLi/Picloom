@@ -45,7 +45,7 @@ func readMetadata(root string) (metadata, error) {
 	if m.Version != pkg.Version {
 		return m, errors.New("mygo.json 与 package.json 版本不一致")
 	}
-	if !regexp.MustCompile(`^[0-9]+[.][0-9]+[.][0-9]+$`).MatchString(m.Version) || m.Name != "Image2AI" || m.Slug != "image2ai" || m.Out != "dist-native" {
+	if !regexp.MustCompile(`^[0-9]+[.][0-9]+[.][0-9]+$`).MatchString(m.Version) || m.Name != "Picloom" || m.Slug != "picloom" || m.Out != "dist-native" {
 		return m, errors.New("应用元数据或输出位置无效")
 	}
 	return m, nil
@@ -54,11 +54,11 @@ func readMetadata(root string) (metadata, error) {
 func installerNames(m metadata, target string) (source, destination string, err error) {
 	switch target {
 	case "windows/amd64":
-		return filepath.Join(m.Out, "windows-amd64", "image2ai-setup-"+m.Version+"-amd64.exe"), "Image2AI-Setup-" + m.Version + "-x64.exe", nil
+		return filepath.Join(m.Out, "windows-amd64", "picloom-setup-"+m.Version+"-amd64.exe"), "Picloom-Setup-" + m.Version + "-x64.exe", nil
 	case "darwin/amd64":
-		return filepath.Join(m.Out, "darwin-amd64", "image2ai-"+m.Version+"-amd64.dmg"), "Image2AI-" + m.Version + "-macOS-x64.dmg", nil
+		return filepath.Join(m.Out, "darwin-amd64", "picloom-"+m.Version+"-amd64.dmg"), "Picloom-" + m.Version + "-macOS-x64.dmg", nil
 	case "darwin/arm64":
-		return filepath.Join(m.Out, "darwin-arm64", "image2ai-"+m.Version+"-arm64.dmg"), "Image2AI-" + m.Version + "-macOS-arm64.dmg", nil
+		return filepath.Join(m.Out, "darwin-arm64", "picloom-"+m.Version+"-arm64.dmg"), "Picloom-" + m.Version + "-macOS-arm64.dmg", nil
 	default:
 		return "", "", errors.New("不支持的安装包平台")
 	}

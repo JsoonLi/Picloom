@@ -167,7 +167,7 @@ func (c *client) capture(file string) error {
 	return os.WriteFile(file, png, 0600)
 }
 func run() error {
-	app := flag.String("app", ".cache/native-e2e/Image2AI.exe", "native executable to verify")
+	app := flag.String("app", ".cache/native-e2e/Picloom.exe", "native executable to verify")
 	release := flag.Bool("release", false, "verify release startup and absence of automation")
 	out := flag.String("out", "test-results/native", "diagnostic output")
 	flag.Parse()
@@ -586,7 +586,7 @@ func stopProcess(cmd *exec.Cmd) error {
 func waitReleaseWindow(pid int) error {
 	if runtime.GOOS == "windows" {
 		// Inspect only the exact test process, never search or act on another app.
-		script := "$deadline=(Get-Date).AddSeconds(20); do { $p=Get-Process -Id " + strconv.Itoa(pid) + " -ErrorAction SilentlyContinue; if (!$p) { exit 1 }; if ($p.MainWindowHandle -ne 0 -and $p.MainWindowTitle -eq 'Image2AI') { exit 0 }; Start-Sleep -Milliseconds 100 } while ((Get-Date) -lt $deadline); exit 2"
+		script := "$deadline=(Get-Date).AddSeconds(20); do { $p=Get-Process -Id " + strconv.Itoa(pid) + " -ErrorAction SilentlyContinue; if (!$p) { exit 1 }; if ($p.MainWindowHandle -ne 0 -and $p.MainWindowTitle -eq 'Picloom · 绘织') { exit 0 }; Start-Sleep -Milliseconds 100 } while ((Get-Date) -lt $deadline); exit 2"
 		return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Run()
 	}
 	// Native runners have a desktop session; the process must survive startup.

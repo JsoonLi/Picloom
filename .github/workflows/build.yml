@@ -55,22 +55,22 @@ jobs:
             target: windows/amd64
             runner: windows-2025
             extension: exe
-            executable: dist-native/windows-amd64/Image2AI.exe
-            e2e_executable: .cache/native-e2e/windows-amd64/Image2AI.exe
+            executable: dist-native/windows-amd64/Picloom.exe
+            e2e_executable: .cache/native-e2e/windows-amd64/Picloom.exe
           - platform: mac
             arch: x64
             target: darwin/amd64
             runner: macos-15-intel
             extension: dmg
-            executable: dist-native/darwin-amd64/Image2AI.app/Contents/MacOS/Image2AI
-            e2e_executable: .cache/native-e2e/darwin-amd64/Image2AI.app/Contents/MacOS/Image2AI
+            executable: dist-native/darwin-amd64/Picloom.app/Contents/MacOS/Picloom
+            e2e_executable: .cache/native-e2e/darwin-amd64/Picloom.app/Contents/MacOS/Picloom
           - platform: mac
             arch: arm64
             target: darwin/arm64
             runner: macos-15
             extension: dmg
-            executable: dist-native/darwin-arm64/Image2AI.app/Contents/MacOS/Image2AI
-            e2e_executable: .cache/native-e2e/darwin-arm64/Image2AI.app/Contents/MacOS/Image2AI
+            executable: dist-native/darwin-arm64/Picloom.app/Contents/MacOS/Picloom
+            e2e_executable: .cache/native-e2e/darwin-arm64/Picloom.app/Contents/MacOS/Picloom
     env:
       CGO_ENABLED: "0"
       MYGO_INSPECTOR: ""
@@ -122,7 +122,7 @@ jobs:
       - name: Upload verified installer
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Image2AI-${{ matrix.platform }}-${{ matrix.arch }}
+          name: Picloom-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist-native/releases/*.${{ matrix.extension }}
           if-no-files-found: error
           compression-level: 0
@@ -143,7 +143,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     concurrency:
-      group: image2ai-release
+      group: picloom-release
       cancel-in-progress: false
     permissions:
       contents: write
@@ -157,7 +157,7 @@ jobs:
       - name: Download verified installers
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: Image2AI-*
+          pattern: Picloom-*
           merge-multiple: true
           path: release-assets
 
@@ -177,9 +177,9 @@ jobs:
             fi
           fi
           assets=(
-            "release-assets/Image2AI-Setup-${version}-x64.exe"
-            "release-assets/Image2AI-${version}-macOS-x64.dmg"
-            "release-assets/Image2AI-${version}-macOS-arm64.dmg"
+            "release-assets/Picloom-Setup-${version}-x64.exe"
+            "release-assets/Picloom-${version}-macOS-x64.dmg"
+            "release-assets/Picloom-${version}-macOS-arm64.dmg"
           )
           for asset in "${assets[@]}"; do
             test -s "$asset"
@@ -191,6 +191,6 @@ jobs:
             fi
             gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
           else
-            gh release create "$RELEASE_TAG" "${assets[@]}" --target "$RELEASE_SHA" --draft --title "Image2AI $RELEASE_TAG" --generate-notes
+            gh release create "$RELEASE_TAG" "${assets[@]}" --target "$RELEASE_SHA" --draft --title "Picloom $RELEASE_TAG" --generate-notes
           fi
           gh release edit "$RELEASE_TAG" --target "$RELEASE_SHA" --draft=false --latest

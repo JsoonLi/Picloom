@@ -1,17 +1,25 @@
 {
-  "name": "Image2AI",
-  "slug": "image2ai",
+  "name": "Picloom",
+  "slug": "picloom",
   "identifier": "com.image2ai.desktop",
   "version": "0.5.0",
-  "description": "原生 AI 绘图工作室",
+  "description": "绘织 · 原生 AI 图像创作工作室",
   "icon": "build/icon-mac.png",
   "out": "dist-native",
   "main": ".",
-  "resources": ["licenses"],
+  "resources": [
+    "licenses"
+  ],
   "macos": {
     "signingIdentity": "-",
     "minimumSystemVersion": "12.0",
-    "infoPlist": { "LSApplicationCategoryType": "public.app-category.graphics-design" }
+    "infoPlist": {
+      "LSApplicationCategoryType": "public.app-category.graphics-design"
+    }
   },
-  "windows": { "displayName": "Image2AI", "installDirName": "Image2AI", "installerInclude": "scripts/windows-upgrade.nsh" }
+  "windows": {
+    "displayName": "Picloom · 绘织",
+    "installDirName": "Image2AI",
+    "installerInclude": "scripts/windows-upgrade.nsh"
+  }
 }

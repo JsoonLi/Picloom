@@ -1,68 +1,70 @@
 # Picloom · 绘织
 
-Picloom 是用 Go 和 MyGo 构建的原生 AI 图像创作桌面应用，支持 Windows 和 macOS。连接自己的 OpenAI 兼容图像服务后，可以通过提示词、参考图或画面标注生成图片，并在本地管理作品。
+**English** | [简体中文](README.zh-CN.md)
 
-[下载最新版本](https://github.com/JsoonLi/Picloom/releases/latest) · [查看所有版本](https://github.com/JsoonLi/Picloom/releases) · [反馈问题](https://github.com/JsoonLi/Picloom/issues)
+Picloom is a native AI image creation app for Windows and macOS, built with Go and MyGo. Connect your own OpenAI-compatible image service to generate images from prompts, reference images, or annotations, and organize your work locally.
 
-## 下载与安装
+[Download the latest release](https://github.com/JsoonLi/Picloom/releases/latest) · [All releases](https://github.com/JsoonLi/Picloom/releases) · [Report an issue](https://github.com/JsoonLi/Picloom/issues)
 
-在 Releases 中选择对应平台的安装包：
+## Download and install
 
-| 平台 | 安装包 |
+Choose the installer for your platform from Releases:
+
+| Platform | Installer |
 | --- | --- |
-| Windows x64 | `Picloom-Setup-<版本>-x64.exe` |
-| macOS Intel | `Picloom-<版本>-macOS-x64.dmg` |
-| macOS Apple Silicon | `Picloom-<版本>-macOS-arm64.dmg` |
+| Windows x64 | `Picloom-Setup-<version>-x64.exe` |
+| macOS Intel | `Picloom-<version>-macOS-x64.dmg` |
+| macOS Apple Silicon | `Picloom-<version>-macOS-arm64.dmg` |
 
-macOS 最低支持 12.0。应用内可在绘图设置的更新页检查新版本、设置自动检查和下载。更新包带有签名校验。
+macOS 12.0 or later is required. The Updates tab in the app's settings lets you check for updates and configure automatic checks and downloads. Update packages are verified against their signatures.
 
-## 开始创作
+## Get started
 
-1. 打开绘图设置，在提供商页填写服务的 Base URL 和 API Key。
-2. 获取并启用图片模型，按服务支持情况选择分辨率，保存提供商。
-3. 在创作区输入提示词，选择模型、画面比例和输出格式，点击开始生成。
-4. 需要以图生图时，添加参考图。生成结果会保存在本地作品库中，可预览、收藏、复制或导出。
+1. Open the app's settings and enter your service's Base URL and API Key in the Providers tab.
+2. Fetch and enable image models, select the resolutions your service supports, and save the provider.
+3. Enter a prompt in the creation area, choose a model, aspect ratio, and output format, then start generating.
+4. Add reference images for image-to-image generation. Results are saved in your local library, where you can preview, favorite, copy, or export them.
 
-应用需要自行配置图像服务和密钥，调用费用由服务商收取。可用模型、分辨率和输出格式取决于所连接的服务。
+You need to supply your own image service and API key. Your service provider handles usage charges. Available models, resolutions, and output formats depend on the service you connect.
 
-## 功能
+## Features
 
-- **文生图与参考图生成**：通过文件选择、拖放或剪贴板添加参考图，最多 4 张。参考图支持 PNG、JPEG 和 WebP，每张不超过 20 MB。
-- **标注编辑**：在单张原图上用画笔、矩形或圆圈标出位置，再输入修改要求。原图与标注层会保留，方便继续修改。
-- **多种输出格式**：可选择 PNG、JPEG、WebP、GIF 或 SVG。GIF 可设置帧数、每帧时长和尺寸。
-- **作品库**：按提示词或模型搜索、筛选收藏、查看生成参数，在预览中切换结果图与参考图，并复用作品的提示词和参数。
-- **失败任务重做**：恢复提示词、参考图、标注和生成参数到创作区，修改后再提交。
-- **提供商与网络设置**：管理多个图像服务，获取模型列表，设置默认分辨率，选择系统代理、直连或手动代理。
-- **外观与更新**：支持浅色、深色和跟随系统主题，以及应用内更新。
+- **Text-to-image and reference images**: Add up to 4 reference images using the file picker, drag and drop, or clipboard. References support PNG, JPEG, and WebP, up to 20 MB each.
+- **Annotation editing**: Mark areas on a single source image with a pen, rectangles, or circles, then describe the changes you want. The source image and annotation layer are preserved for further editing.
+- **Output formats**: Choose PNG, JPEG, WebP, GIF, or SVG. GIF options include frame count, frame duration, and dimensions.
+- **Image library**: Search by prompt or model, filter favorites, inspect generation settings, switch between results and references in the preview, and reuse prompts and settings.
+- **Redo failed jobs**: Restore prompts, references, annotations, and generation settings to the creation area, edit them, and submit again.
+- **Providers and networking**: Manage multiple image services, fetch model lists, set default resolutions, and use the system proxy, a direct connection, or a manual proxy.
+- **Appearance and updates**: Light, dark, and system themes, plus in-app updates.
 
-GIF、SVG 和标注编辑需要服务端支持相应接口。当前发布版本的 GIF 仅支持文生图，标注编辑支持默认格式、PNG、JPEG 和 WebP 输出。
+GIF, SVG, and annotation editing require support from your service. In the current release, GIF supports text-to-image generation only. Annotation editing supports the default format, PNG, JPEG, and WebP.
 
-## 服务接口
+## Service API
 
-Picloom 使用 OpenAI 兼容的图像接口，默认配置如下：
+Picloom uses OpenAI-compatible image APIs with these defaults:
 
-| 用途 | 请求 |
+| Purpose | Request |
 | --- | --- |
-| 获取模型 | `GET <Base URL>/models` |
-| 文生图 | `POST <Base URL>/images/generations` |
-| 参考图与标注编辑 | `POST <Base URL>/images/edits` |
+| Fetch models | `GET <Base URL>/models` |
+| Text-to-image | `POST <Base URL>/images/generations` |
+| Reference images and annotation editing | `POST <Base URL>/images/edits` |
 
-Base URL 示例为 `https://api.example.com/v1`，应填写服务商提供的实际地址。图像请求支持自定义生成和编辑端点。GIF 使用 `output_format`、`frame_count` 和 `frame_duration_ms` 参数，标注编辑额外发送透明 PNG 格式的 `markup` 图层，需确认服务兼容。
+An example Base URL is `https://api.example.com/v1`; use the address supplied by your provider. Generation and editing endpoint paths are configurable. GIF requests use `output_format`, `frame_count`, and `frame_duration_ms`. Annotation requests include an additional transparent PNG layer in the `markup` field. Check that your service supports these parameters.
 
-## 本地数据
+## Local data
 
-为兼容早期 Image2AI 版本，Picloom 沿用 `Image2AI` 数据目录名称：
+Picloom keeps the `Image2AI` data directory name for compatibility with earlier versions:
 
-| 平台 | 默认数据目录 |
+| Platform | Default data directory |
 | --- | --- |
 | Windows | `%APPDATA%/Image2AI` |
 | macOS | `~/Library/Application Support/Image2AI` |
 
-目录中包含 `config.json`、作品记录和图片。API Key 保存在本机配置文件中，备份或分享目录时请移除密钥。生成请求会将提示词、参考图及标注发送给所配置的图像服务。
+The directory contains `config.json`, image records, and image files. API keys are stored in the local configuration file; remove them before backing up or sharing the directory. Generation requests send your prompt, reference images, and annotations to the image service you configured.
 
-## 从源码运行
+## Run from source
 
-需要 Go 1.27.3。应用使用原生界面，日常开发可直接使用 Go 命令：
+Go 1.27.3 is required. The app uses a native UI, so you can develop with Go commands directly:
 
 ```sh
 git clone https://github.com/JsoonLi/Picloom.git
@@ -77,7 +79,7 @@ go vet ./...
 go tool mygo build -skip-installer -skip-dmg
 ```
 
-构建结果位于 `dist-native/`。项目也提供 npm 命令封装，需要 Node.js 24 或更高版本：
+Build output goes to `dist-native/`. Optional npm wrappers require Node.js 24 or later:
 
 ```sh
 npm ci
@@ -88,8 +90,8 @@ npm run dist:mac:x64
 npm run dist:mac:arm64
 ```
 
-安装包请在对应平台构建，macOS DMG 需要在 macOS 上生成。正式版本的 Windows x64、macOS Intel 和 Apple Silicon 安装包由 [GitHub Actions](.github/workflows/build.yml) 构建并发布。
+Build installers on the corresponding platform. macOS DMGs must be built on macOS. Release installers for Windows x64, macOS Intel, and Apple Silicon are built and published by [GitHub Actions](.github/workflows/build.yml).
 
-## 第三方许可
+## Third-party licenses
 
-依赖与原生主题的许可声明见 [licenses/README.md](licenses/README.md)，并随应用一同打包。
+License notices for dependencies and the native theme are listed in [licenses/README.md](licenses/README.md) and included with the app.

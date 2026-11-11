@@ -53,7 +53,8 @@ Desktop.ini
 *.sln
 *.sw?
 
-# Keep project documentation local; retain required third-party notices.
+# Keep internal documentation local; publish the project README and notices.
 /docs/
 *.md
+!/README.md
 !licenses/*.md

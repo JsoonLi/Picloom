@@ -6,6 +6,9 @@ import (
 )
 
 type Provider struct {
+	// Disabled keeps a provider's settings while hiding its models from the
+	// studio; providers saved before this field existed stay enabled.
+	Disabled          bool     `json:"disabled,omitempty"`
 	DefaultResolution string   `json:"defaultResolution,omitempty"`
 	ID                string   `json:"id"`
 	Name              string   `json:"name"`
@@ -36,6 +39,14 @@ type Config struct {
 	Providers             []Provider            `json:"providers"`
 	Proxy                 ProxyConfig           `json:"proxy"`
 	Theme                 string                `json:"theme"`
+	// Language is "system" (or empty) to follow the computer's language,
+	// else a supported tag: "zh-Hans" or "en".
+	Language string `json:"language,omitempty"`
+	// ImageDirectory holds new works and their references when set; empty
+	// keeps them in the data directory. Earlier choices stay readable so
+	// works saved there still open and can be deleted.
+	ImageDirectory           string   `json:"imageDirectory,omitempty"`
+	PreviousImageDirectories []string `json:"previousImageDirectories,omitempty"`
 }
 type ImageRecord struct {
 	// Requested GIF settings. Actual frame count and timing come from the file.
@@ -119,6 +130,8 @@ type Backend interface {
 	SaveProviders([]Provider) (Config, error)
 	SaveProxy(ProxyConfig) (Config, error)
 	SaveTheme(string) (Config, error)
+	SaveLanguage(string) (Config, error)
+	SaveImageDirectory(string) (Config, error)
 	SavePreferences(GenerationPreferences) (Config, error)
 	DiscoverModels(context.Context, Provider) ([]string, error)
 	DiscoverPricing(context.Context, string) ([]ModelPricing, error)
@@ -151,8 +164,40 @@ type Desktop interface {
 	CopyText(string) error
 	ExportImage(string) (bool, error)
 	SetTheme(string)
+	// SetLanguage shows the language of tag, "system" for the computer's,
+	// and returns the language the studio now shows.
+	SetLanguage(tag string) string
 	DataDir() string
+	// ChooseDirectory asks for a folder; ok is false when the user cancels.
+	ChooseDirectory(title, current string) (path string, ok bool, err error)
 	UpdateStatus() UpdateStatus
 	SetUpdatePreferences(checks, downloads bool) (UpdateStatus, error)
 	CheckForUpdates() error
+}
+
+// RequestField is one form or JSON field of a planned generation request.
+type RequestField struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// RequestImage describes one uploaded image without its bytes.
+type RequestImage struct {
+	Field    string `json:"field"`
+	FileName string `json:"fileName"`
+	MIMEType string `json:"mimeType"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Bytes    int    `json:"bytes"`
+}
+
+// RequestPlan is exactly what Generate sends for some arguments, with the
+// API key masked and image bytes summarised.
+type RequestPlan struct {
+	Method      string         `json:"method"`
+	URL         string         `json:"url"`
+	ContentType string         `json:"contentType"`
+	APIKey      string         `json:"apiKey"`
+	Fields      []RequestField `json:"fields"`
+	Images      []RequestImage `json:"images"`
 }

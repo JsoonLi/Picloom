@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"image2ai/internal/domain"
 )
 
@@ -11,9 +13,10 @@ func TestAppearanceSaveDoesNotShowNotice(t *testing.T) {
 	a, tt, b, d := fixture(t, 1280, 900)
 	a.openSettings()
 	a.settingsTab = "外观"
-	a.draftTheme = "dark"
 	tt.Frame()
-	click(t, tt, "保存外观设置")
+	click(t, tt, "选择主题")
+	tt.Key(0, ui.KeyEnd)
+	tt.Key(0, ui.KeyEnter)
 	settle(a, tt)
 	if b.config.Theme != "dark" || d.theme != "dark" {
 		t.Fatal("appearance must still be saved and applied")

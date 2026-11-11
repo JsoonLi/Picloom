@@ -1,5 +1,6 @@
 package desktop
 
+import "image2ai/internal/locale"
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -39,7 +40,7 @@ func readUpdateChoices(directory string) (*updateChoices, error) {
 			return nil, err
 		}
 		if !info.Mode().IsRegular() || info.Size() > updateStateLimit {
-			return nil, errors.New("更新设置不是有效的本机文件。")
+			return nil, errors.New(locale.T("更新设置不是有效的本机文件。"))
 		}
 	}
 	file, err := root.Open("updater.json")
@@ -57,11 +58,11 @@ func readUpdateChoices(directory string) (*updateChoices, error) {
 	var choices updateChoices
 	var fields map[string]jsontext.Value
 	if len(data) > updateStateLimit || json.Unmarshal(data, &fields) != nil || fields == nil || json.Unmarshal(data, &choices) != nil {
-		return nil, errors.New("更新设置文件损坏，请保留文件并修复后重试。")
+		return nil, errors.New(locale.T("更新设置文件损坏，请保留文件并修复后重试。"))
 	}
 	for _, key := range []string{"automaticChecks", "automaticDownloads"} {
 		if raw, ok := fields[key]; ok && string(raw) == "null" {
-			return nil, errors.New("更新设置文件损坏，请保留文件并修复后重试。")
+			return nil, errors.New(locale.T("更新设置文件损坏，请保留文件并修复后重试。"))
 		}
 	}
 	return &choices, nil
@@ -92,7 +93,7 @@ func (d *Desktop) InitializeUpdates() error {
 		return err
 	}
 	if choices == nil || !choices.AutomaticDownloads {
-		return errors.New("无法保存自动更新设置，请检查数据目录权限。")
+		return errors.New(locale.T("无法保存自动更新设置，请检查数据目录权限。"))
 	}
 	return nil
 }
@@ -101,7 +102,7 @@ func (d *Desktop) InitializeUpdates() error {
 func (d *Desktop) UpdateStatus() domain.UpdateStatus {
 	version := mygo.App.Version()
 	if version == "" {
-		version = "开发版"
+		version = locale.T("开发版")
 	}
 	return domain.UpdateStatus{
 		Version: version, Supported: mygo.Updater.Enabled(),
@@ -113,7 +114,7 @@ func (d *Desktop) UpdateStatus() domain.UpdateStatus {
 
 func (d *Desktop) SetUpdatePreferences(checks, downloads bool) (domain.UpdateStatus, error) {
 	if !mygo.Updater.Enabled() {
-		return d.UpdateStatus(), errors.New("当前版本或安装位置不支持自动更新。")
+		return d.UpdateStatus(), errors.New(locale.T("当前版本或安装位置不支持自动更新。"))
 	}
 	if _, err := readUpdateChoices(d.root); err != nil {
 		return d.UpdateStatus(), err
@@ -122,7 +123,7 @@ func (d *Desktop) SetUpdatePreferences(checks, downloads bool) (domain.UpdateSta
 	updater.SetAutomaticDownloads(downloads)
 	saved, err := readUpdateChoices(d.root)
 	if err == nil && (saved == nil || saved.AutomaticChecks == nil || *saved.AutomaticChecks != checks || saved.AutomaticDownloads != downloads) {
-		err = errors.New("无法保存更新设置，请检查数据目录权限。")
+		err = errors.New(locale.T("无法保存更新设置，请检查数据目录权限。"))
 	}
 	return d.UpdateStatus(), err
 }
@@ -130,7 +131,7 @@ func (d *Desktop) SetUpdatePreferences(checks, downloads bool) (domain.UpdateSta
 // The studio/menu invokes this in a worker: the safety probes touch disk.
 func (d *Desktop) CheckForUpdates() error {
 	if !mygo.Updater.Enabled() {
-		return errors.New("当前版本或安装位置不支持自动更新。")
+		return errors.New(locale.T("当前版本或安装位置不支持自动更新。"))
 	}
 	if _, err := readUpdateChoices(d.root); err != nil {
 		return err

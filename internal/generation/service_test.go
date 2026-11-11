@@ -372,3 +372,22 @@ func TestProviderDefaultResolution(t *testing.T) {
 		})
 	}
 }
+
+func TestDisabledProviderRefusesGenerationAndOneStaysEnabled(t *testing.T) {
+	service, store, _ := setupService(t, func(w http.ResponseWriter, r *http.Request) { sendPNG(w) })
+	store.config.Providers[0].Disabled = true
+	if _, err := NormalizeProviders(store.config.Providers); err == nil {
+		t.Fatal("saving with every provider disabled must be refused")
+	}
+	enabled := store.config.Providers[0]
+	enabled.ID, enabled.Disabled = "enabled", false
+	store.config.Providers = append(store.config.Providers, enabled)
+	if _, err := service.Generate(context.Background(), baseArgs(), nil); err == nil || !strings.Contains(err.Error(), "已停用") {
+		t.Fatalf("a disabled provider must refuse generation: %v", err)
+	}
+	args := baseArgs()
+	args.ProviderID = "enabled"
+	if _, err := service.Generate(context.Background(), args, nil); err != nil {
+		t.Fatalf("an enabled provider must still generate: %v", err)
+	}
+}

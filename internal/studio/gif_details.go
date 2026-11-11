@@ -2,6 +2,7 @@ package studio
 
 import (
 	"fmt"
+	"image2ai/internal/locale"
 
 	"github.com/egoist/mygo/ui"
 	"image2ai/internal/domain"
@@ -20,7 +21,7 @@ func (a *App) gifActualTiming(c *ui.Context, record domain.ImageRecord) {
 	if record.MIMEType != "image/gif" || animation == nil || animation.duration <= 0 {
 		return
 	}
-	ui.Text(c.Key("gif-actual-timing"), fmt.Sprintf("实际 %d 帧 · 平均 %.1f 帧/秒", len(animation.frames), float64(len(animation.frames))/animation.duration.Seconds())).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	ui.Text(c.Key("gif-actual-timing"), fmt.Sprintf(locale.T("实际 %d 帧 · 平均 %.1f 帧/秒"), len(animation.frames), float64(len(animation.frames))/animation.duration.Seconds())).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 }
 
 func (a *App) reuseGIFSettings(record domain.ImageRecord) {

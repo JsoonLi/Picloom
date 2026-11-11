@@ -3,13 +3,14 @@ package generation
 import (
 	"encoding/binary"
 	"errors"
+	"image2ai/internal/locale"
 )
 
 // retimeGIF only changes graphic-control delays. Image descriptors, palettes,
 // compressed pixels, disposal, transparency and loop extensions stay intact.
 func retimeGIF(data []byte, durationMS int) ([]byte, error) {
 	if durationMS < 20 || durationMS > 2000 {
-		return nil, errors.New("GIF 每帧时长应为 20–2000 毫秒。")
+		return nil, errors.New(locale.T("GIF 每帧时长应为 20–2000 毫秒。"))
 	}
 	if err := validateGIF(data); err != nil {
 		return nil, err
@@ -45,7 +46,7 @@ func retimeGIF(data []byte, durationMS int) ([]byte, error) {
 			output = append(output, data[start:pos]...)
 			if label == 0xf9 {
 				if data[sizePos] != 4 {
-					return nil, errors.New("GIF 播放控制数据无效。")
+					return nil, errors.New(locale.T("GIF 播放控制数据无效。"))
 				}
 				binary.LittleEndian.PutUint16(output[base+4:base+6], delay)
 				pendingControl = true
@@ -69,10 +70,10 @@ func retimeGIF(data []byte, durationMS int) ([]byte, error) {
 		case 0x3b:
 			output = append(output, marker)
 		default:
-			return nil, errors.New("GIF 数据无效。")
+			return nil, errors.New(locale.T("GIF 数据无效。"))
 		}
 		if len(output) > MaxImageBytes {
-			return nil, errors.New("设置帧率后的 GIF 超过 40 MB。")
+			return nil, errors.New(locale.T("设置帧率后的 GIF 超过 40 MB。"))
 		}
 	}
 	return output, nil

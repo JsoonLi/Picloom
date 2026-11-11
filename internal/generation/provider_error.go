@@ -3,6 +3,7 @@ package generation
 import (
 	"encoding/json"
 	"fmt"
+	"image2ai/internal/locale"
 	"net/http"
 	"regexp"
 	"strings"
@@ -24,7 +25,7 @@ var (
 // Only bounded structured error fields can reach the UI. Raw responses,
 // HTML gateway pages, request echoes and credentials are never logged.
 func providerResponseError(response *http.Response, sensitive []string) error {
-	fallback := fmt.Errorf("生图请求失败（HTTP %d）。渠道未返回可显示的错误详情。", response.StatusCode)
+	fallback := fmt.Errorf(locale.T("生图请求失败（HTTP %d）。渠道未返回可显示的错误详情。"), response.StatusCode)
 	data, err := readLimited(response, maxProviderErrorBytes)
 	if err != nil {
 		return fallback
@@ -52,10 +53,10 @@ func providerResponseError(response *http.Response, sensitive []string) error {
 	parameter := safeProviderErrorText(readString("param"), sensitive, 64)
 	identifiers := []string{}
 	if errorIdentifier.MatchString(parameter) {
-		identifiers = append(identifiers, "参数 "+parameter)
+		identifiers = append(identifiers, locale.T("参数 ")+parameter)
 	}
 	if errorIdentifier.MatchString(code) {
-		identifiers = append(identifiers, "代码 "+code)
+		identifiers = append(identifiers, locale.T("代码 ")+code)
 	}
 	if message == "" && len(identifiers) == 0 {
 		return fallback
@@ -65,9 +66,9 @@ func providerResponseError(response *http.Response, sensitive []string) error {
 		detail = strings.Join(identifiers, "，") + "。"
 	}
 	if message != "" {
-		detail += "渠道提示：" + message
+		detail += locale.T("渠道提示：") + message
 	}
-	return fmt.Errorf("生图请求失败（HTTP %d）。%s", response.StatusCode, detail)
+	return fmt.Errorf(locale.T("生图请求失败（HTTP %d）。%s"), response.StatusCode, detail)
 }
 
 func safeProviderErrorText(value string, sensitive []string, limit int) string {
@@ -75,17 +76,17 @@ func safeProviderErrorText(value string, sensitive []string, limit int) string {
 		if secret == "" {
 			continue
 		}
-		value = strings.ReplaceAll(value, secret, "[已隐藏]")
+		value = strings.ReplaceAll(value, secret, locale.T("[已隐藏]"))
 		if encoded, err := json.Marshal(secret); err == nil && len(encoded) > 2 {
-			value = strings.ReplaceAll(value, string(encoded[1:len(encoded)-1]), "[已隐藏]")
+			value = strings.ReplaceAll(value, string(encoded[1:len(encoded)-1]), locale.T("[已隐藏]"))
 		}
 	}
-	value = errorURL.ReplaceAllString(value, "[链接已隐藏]")
-	value = errorDataURL.ReplaceAllString(value, "[图片已隐藏]")
-	value = errorAuthorization.ReplaceAllString(value, "[鉴权已隐藏]")
-	value = errorCredential.ReplaceAllString(value, "[凭据已隐藏]")
-	value = errorEncodedData.ReplaceAllString(value, "[数据已隐藏]")
-	value = errorInput.ReplaceAllString(value, "[输入内容已隐藏]")
+	value = errorURL.ReplaceAllString(value, locale.T("[链接已隐藏]"))
+	value = errorDataURL.ReplaceAllString(value, locale.T("[图片已隐藏]"))
+	value = errorAuthorization.ReplaceAllString(value, locale.T("[鉴权已隐藏]"))
+	value = errorCredential.ReplaceAllString(value, locale.T("[凭据已隐藏]"))
+	value = errorEncodedData.ReplaceAllString(value, locale.T("[数据已隐藏]"))
+	value = errorInput.ReplaceAllString(value, locale.T("[输入内容已隐藏]"))
 	value = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) || unicode.In(r, unicode.Cf) {
 			return ' '

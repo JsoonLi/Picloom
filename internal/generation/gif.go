@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/gif"
+	"image2ai/internal/locale"
 	"time"
 )
 
@@ -16,7 +17,7 @@ const maxGIFPixels = 16 * 1024 * 1024
 
 // Check all frame descriptors before DecodeAll can allocate frame buffers.
 func validateGIF(data []byte) error {
-	fail := errors.New("GIF 无效或过大（最多 256 帧、总计 1600 万帧像素）。")
+	fail := errors.New(locale.T("GIF 无效或过大（最多 256 帧、总计 1600 万帧像素）。"))
 	if len(data) < 13 || (string(data[:6]) != "GIF87a" && string(data[:6]) != "GIF89a") {
 		return fail
 	}
@@ -110,14 +111,14 @@ func gifBackground(decoded *gif.GIF) color.Color {
 // DecodeAnimation composites partial frames and applies GIF disposal rules.
 func DecodeAnimation(data []byte) (*Animation, error) {
 	if len(data) > MaxImageBytes {
-		return nil, errors.New("GIF 文件超过 40 MB。")
+		return nil, errors.New(locale.T("GIF 文件超过 40 MB。"))
 	}
 	if err := validateGIF(data); err != nil {
 		return nil, err
 	}
 	decoded, err := gif.DecodeAll(bytes.NewReader(data))
 	if err != nil {
-		return nil, errors.New("GIF 数据不完整或无法解码。")
+		return nil, errors.New(locale.T("GIF 数据不完整或无法解码。"))
 	}
 	bounds := image.Rect(0, 0, decoded.Config.Width, decoded.Config.Height)
 	canvas := image.NewRGBA(bounds)

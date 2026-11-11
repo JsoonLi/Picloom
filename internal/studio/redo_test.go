@@ -156,7 +156,7 @@ func TestRedoMarkedDraftFitsNarrowWindow(t *testing.T) {
 					t.Fatalf("restored %s overflows %d: %v", label, width, box)
 				}
 			}
-			if !tt.HasText("参考图 1/1") || !tt.HasText("含标注") || !tt.HasText("沿用") || !tt.HasText("自动尺寸") {
+			if !tt.HasText("参考图 1/1") || !tt.HasText("含标注") || !tt.HasText("沿用") || a.requestSize() != "auto" {
 				t.Fatal("restored markup and size state must be visible")
 			}
 			if output := os.Getenv("IMAGE2AI_REDO_SNAPSHOTS"); output != "" {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image2ai/internal/domain"
+	"image2ai/internal/locale"
 	"image2ai/internal/network"
 	"net/http"
 	"regexp"
@@ -32,18 +33,18 @@ func (s *Service) getDiscovery(ctx context.Context, provider domain.Provider, pa
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
 	if err != nil {
-		return nil, errors.New("模型服务地址无效。")
+		return nil, errors.New(locale.T("模型服务地址无效。"))
 	}
 	if key := strings.TrimSpace(provider.APIKey); auth && key != "" {
 		request.Header.Set("Authorization", "Bearer "+key)
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, errors.New("获取模型或价格失败，请检查服务和网络。")
+		return nil, errors.New(locale.T("获取模型或价格失败，请检查服务和网络。"))
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		response.Body.Close()
-		return nil, fmt.Errorf("获取模型或价格失败（HTTP %d）。", response.StatusCode)
+		return nil, fmt.Errorf(locale.T("获取模型或价格失败（HTTP %d）。"), response.StatusCode)
 	}
 	return readLimited(response, 2*1024*1024)
 }
@@ -56,7 +57,7 @@ func (s *Service) DiscoverModels(ctx context.Context, provider domain.Provider) 
 		Data json.RawMessage `json:"data"`
 	}
 	if json.Unmarshal(raw, &payload) != nil || len(payload.Data) == 0 || string(payload.Data) == "null" {
-		return nil, errors.New("服务返回的模型列表格式无效。")
+		return nil, errors.New(locale.T("服务返回的模型列表格式无效。"))
 	}
 	var entries []struct {
 		ID           string   `json:"id"`
@@ -66,7 +67,7 @@ func (s *Service) DiscoverModels(ctx context.Context, provider domain.Provider) 
 		} `json:"architecture"`
 	}
 	if json.Unmarshal(payload.Data, &entries) != nil {
-		return nil, errors.New("服务返回的模型列表格式无效。")
+		return nil, errors.New(locale.T("服务返回的模型列表格式无效。"))
 	}
 	models := []string{}
 	for _, entry := range entries {
@@ -98,7 +99,7 @@ func (s *Service) DiscoverPricing(ctx context.Context, providerID string) ([]dom
 		}
 	}
 	if provider.ID == "" {
-		return nil, errors.New("提供商不存在。")
+		return nil, errors.New(locale.T("提供商不存在。"))
 	}
 	raw, err := s.getDiscovery(ctx, provider, "/models/pricing", false)
 	if err != nil {
@@ -108,7 +109,7 @@ func (s *Service) DiscoverPricing(ctx context.Context, providerID string) ([]dom
 		Models json.RawMessage `json:"models"`
 	}
 	if json.Unmarshal(raw, &payload) != nil || len(payload.Models) == 0 || string(payload.Models) == "null" {
-		return nil, errors.New("服务返回的价格格式无效。")
+		return nil, errors.New(locale.T("服务返回的价格格式无效。"))
 	}
 	var entries []struct {
 		ID       string `json:"id"`
@@ -122,7 +123,7 @@ func (s *Service) DiscoverPricing(ctx context.Context, providerID string) ([]dom
 		} `json:"per_call_tiers"`
 	}
 	if json.Unmarshal(payload.Models, &entries) != nil {
-		return nil, errors.New("服务返回的价格格式无效。")
+		return nil, errors.New(locale.T("服务返回的价格格式无效。"))
 	}
 	result := []domain.ModelPricing{}
 	for _, entry := range entries {

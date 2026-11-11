@@ -2,6 +2,7 @@ package generation
 
 import (
 	"errors"
+	"image2ai/internal/locale"
 	"strconv"
 	"strings"
 )
@@ -20,7 +21,7 @@ func NormalizeGIFTiming(frames, duration int) (int, int, error) {
 		duration = DefaultGIFFrameDurationMS
 	}
 	if frames < 2 || frames > 64 || duration < 20 || duration > 2000 {
-		return 0, 0, errors.New("GIF 帧数应为 2–64，每帧时长应为 20–2000 毫秒。")
+		return 0, 0, errors.New(locale.T("GIF 帧数应为 2–64，每帧时长应为 20–2000 毫秒。"))
 	}
 	return frames, duration, nil
 }
@@ -47,7 +48,7 @@ func ValidateGIFSettings(size string, frames, duration int) error {
 		return err
 	}
 	if frames > GIFFrameLimit(size) {
-		return errors.New("GIF 单帧尺寸与帧数组合过大，请缩小单帧尺寸或减少帧数。")
+		return errors.New(locale.T("GIF 单帧尺寸与帧数组合过大，请缩小单帧尺寸或减少帧数。"))
 	}
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"image2ai/internal/locale"
 
 	"golang.org/x/image/draw"
 )
@@ -20,7 +21,7 @@ const MaxThumbnailSide = 2048
 // own proportions. Images already small enough are returned as decoded.
 func Thumbnail(data []byte, maxW, maxH int) (image.Image, error) {
 	if maxW < 1 || maxH < 1 || maxW > MaxThumbnailSide || maxH > MaxThumbnailSide {
-		return nil, errors.New("缩略图尺寸无效。")
+		return nil, errors.New(locale.T("缩略图尺寸无效。"))
 	}
 	mime, w, h, err := imageConfig(data)
 	if err != nil {
@@ -44,7 +45,7 @@ func Thumbnail(data []byte, maxW, maxH int) (image.Image, error) {
 		source, _, err = image.Decode(bytes.NewReader(data))
 	}
 	if err != nil {
-		return nil, errors.New("图片数据不完整或无法解码。")
+		return nil, errors.New(locale.T("图片数据不完整或无法解码。"))
 	}
 	bounds := source.Bounds()
 	w, h = bounds.Dx(), bounds.Dy()

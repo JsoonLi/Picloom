@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"image2ai/internal/locale"
 	"io"
 	"net/http"
 	"strings"
@@ -34,7 +35,7 @@ func ImageSize(data []byte) (image.Point, error) {
 
 func imageConfig(data []byte) (mime string, width, height int, err error) {
 	if len(data) == 0 || len(data) > MaxImageBytes {
-		return "", 0, 0, errors.New("图片为空或超过 40 MB。")
+		return "", 0, 0, errors.New(locale.T("图片为空或超过 40 MB。"))
 	}
 	if isSVG(data) {
 		w, h, err := svgSize(data)
@@ -47,11 +48,11 @@ func imageConfig(data []byte) (mime string, width, height int, err error) {
 	}
 	config, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		return "", 0, 0, errors.New("图片无法解码，请使用 PNG、JPEG、WebP、GIF 或 SVG。")
+		return "", 0, 0, errors.New(locale.T("图片无法解码，请使用 PNG、JPEG、WebP、GIF 或 SVG。"))
 	}
 	mime = map[string]string{"png": "image/png", "jpeg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}[format]
 	if mime == "" || config.Width < 1 || config.Height < 1 || int64(config.Width)*int64(config.Height) > 67108864 {
-		return "", 0, 0, errors.New("图片格式或像素尺寸无效（最多 6400 万像素）。")
+		return "", 0, 0, errors.New(locale.T("图片格式或像素尺寸无效（最多 6400 万像素）。"))
 	}
 	return mime, config.Width, config.Height, nil
 }
@@ -68,12 +69,12 @@ func decodeImage(data []byte) (mime string, width, height int, err error) {
 	if mime == "image/gif" {
 		_, err = gif.DecodeAll(bytes.NewReader(data))
 		if err != nil {
-			err = errors.New("GIF 数据不完整或无法解码。")
+			err = errors.New(locale.T("GIF 数据不完整或无法解码。"))
 		}
 		return mime, width, height, err
 	}
 	if _, _, err = image.Decode(bytes.NewReader(data)); err != nil {
-		return "", 0, 0, errors.New("图片数据不完整或无法解码。")
+		return "", 0, 0, errors.New(locale.T("图片数据不完整或无法解码。"))
 	}
 	return mime, width, height, nil
 }
@@ -85,26 +86,26 @@ func decodeBase64(value string, limit int) ([]byte, error) {
 		return r
 	}, value)
 	if len(value) == 0 || len(value) > base64.StdEncoding.EncodedLen(limit) {
-		return nil, errors.New("图片 Base64 数据无效或过大。")
+		return nil, errors.New(locale.T("图片 Base64 数据无效或过大。"))
 	}
 	data, err := base64.StdEncoding.Strict().DecodeString(value)
 	if err != nil {
 		data, err = base64.RawStdEncoding.Strict().DecodeString(value)
 	}
 	if err != nil || len(data) > limit {
-		return nil, errors.New("图片 Base64 数据无效或过大。")
+		return nil, errors.New(locale.T("图片 Base64 数据无效或过大。"))
 	}
 	return data, nil
 }
 func dataURL(value string, limit int) ([]byte, error) {
 	header, payload, ok := strings.Cut(value, ",")
 	if !ok {
-		return nil, errors.New("参考图必须是 PNG、JPEG 或 WebP 图片。")
+		return nil, errors.New(locale.T("参考图必须是 PNG、JPEG 或 WebP 图片。"))
 	}
 	switch strings.ToLower(header) {
 	case "data:image/png;base64", "data:image/jpeg;base64", "data:image/jpg;base64", "data:image/webp;base64":
 	default:
-		return nil, errors.New("参考图必须是 PNG、JPEG 或 WebP 图片。")
+		return nil, errors.New(locale.T("参考图必须是 PNG、JPEG 或 WebP 图片。"))
 	}
 	return decodeBase64(payload, limit)
 }
@@ -133,14 +134,14 @@ func ValidOutputFormat(value string) bool {
 func readLimited(response *http.Response, limit int64) ([]byte, error) {
 	defer response.Body.Close()
 	if response.ContentLength > limit {
-		return nil, errors.New("接口响应过大。")
+		return nil, errors.New(locale.T("接口响应过大。"))
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err != nil {
-		return nil, errors.New("读取接口响应失败。")
+		return nil, errors.New(locale.T("读取接口响应失败。"))
 	}
 	if int64(len(data)) > limit {
-		return nil, errors.New("接口响应过大。")
+		return nil, errors.New(locale.T("接口响应过大。"))
 	}
 	return data, nil
 }

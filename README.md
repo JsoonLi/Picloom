@@ -25,7 +25,7 @@ macOS 12.0 or later is required. The Updates tab in the app's settings lets you 
 ## Get started
 
 1. Open the app's settings and enter your service's Base URL and API Key in the Providers tab.
-2. Fetch and enable image models, select the resolutions your service supports, and save the provider.
+2. Fetch and enable image models, then select the resolutions your service supports. Settings save automatically.
 3. Enter a prompt in the creation area, choose a model, aspect ratio, and output format, then start generating.
 4. Add reference images for image-to-image generation. Results are saved in your local library, where you can preview, favorite, copy, or export them.
 
@@ -39,9 +39,9 @@ You need to supply your own image service and API key. Your service provider han
 - **Image library**: Search by prompt or model, filter favorites, inspect generation settings, switch between results and references in the preview, and reuse prompts and settings.
 - **Redo failed jobs**: Restore prompts, references, annotations, and generation settings to the creation area, edit them, and submit again.
 - **Providers and networking**: Manage multiple image services, fetch model lists, set default resolutions, and use the system proxy, a direct connection, or a manual proxy.
-- **Appearance and updates**: Light, dark, and system themes, plus in-app updates.
+- **Appearance and updates**: English and Simplified Chinese interfaces, light, dark, and system themes, plus in-app updates.
 
-GIF, SVG, and annotation editing require support from your service. In the current release, GIF supports text-to-image generation only. Annotation editing supports the default format, PNG, JPEG, and WebP.
+GIF, SVG, and annotation editing require support from your service. GIF supports both text prompts and reference images. Annotation editing supports the default format, PNG, JPEG, and WebP.
 
 ## Service API
 
@@ -65,6 +65,8 @@ Picloom keeps the `Image2AI` data directory name for compatibility with earlier 
 | macOS | `~/Library/Application Support/Image2AI` |
 
 The directory contains `config.json`, image records, and image files. API keys are stored in the local configuration file; remove them before backing up or sharing the directory. Generation requests send your prompt, reference images, and annotations to the image service you configured.
+
+You can choose a separate image folder in Settings. New images and references go there, and earlier works remain accessible in their original folders.
 
 ## Run from source
 

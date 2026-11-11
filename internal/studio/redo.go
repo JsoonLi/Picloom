@@ -1,5 +1,7 @@
 package studio
 
+import "errors"
+import "image2ai/internal/locale"
 import (
 	"fmt"
 
@@ -14,7 +16,7 @@ func (a *App) redoJob(task *job) {
 	a.restoreGenerationDraft(args, func() ([]domain.Reference, error) {
 		refs := make([]domain.Reference, 0, len(args.ReferenceImages))
 		for i, value := range args.ReferenceImages {
-			refs = append(refs, domain.Reference{ID: newID(), Name: fmt.Sprintf("参考图 %d", i+1), DataURL: value})
+			refs = append(refs, domain.Reference{ID: newID(), Name: fmt.Sprintf(locale.T("参考图 %d"), i+1), DataURL: value})
 		}
 		return refs, nil
 	}, func() { a.removeJob(task) })
@@ -33,7 +35,7 @@ func (a *App) restoreGenerationDraft(args domain.GenerateArgs, read func() ([]do
 		refs, err := read()
 		thumbs := make(map[string]*ui.Bitmap)
 		if err == nil && len(refs) > 4 {
-			err = fmt.Errorf("最多恢复 4 张参考图。")
+			err = errors.New(locale.T("最多恢复 4 张参考图。"))
 		}
 		for _, ref := range refs {
 			if err != nil {
@@ -47,7 +49,7 @@ func (a *App) restoreGenerationDraft(args domain.GenerateArgs, read func() ([]do
 		}
 		if err == nil && args.Markup != "" {
 			if len(refs) != 1 {
-				err = fmt.Errorf("标注编辑需要一张原图。")
+				err = errors.New(locale.T("标注编辑需要一张原图。"))
 			} else {
 				_, err = decodeMarkupBase(args.Markup, refs[0].DataURL)
 			}
@@ -78,7 +80,7 @@ func (a *App) restoreGenerationDraft(args domain.GenerateArgs, read func() ([]do
 			if restored != nil {
 				restored()
 			}
-			a.showNotice("已带入提示词、参考图和生成参数，修改后点击开始生成。")
+			a.showNotice(locale.T("已带入提示词、参考图和生成参数，修改后点击开始生成。"))
 		}
 	})
 }

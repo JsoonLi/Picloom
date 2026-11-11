@@ -1,7 +1,9 @@
 package studio
 
 import (
+	"errors"
 	"fmt"
+	"image2ai/internal/locale"
 	"runtime"
 	"strings"
 	"unicode/utf8"
@@ -44,7 +46,7 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 		if !c.Preferences().HighContrast {
 			placeholderColor = placeholderColor.Mix(c.Theme().Surface, 0.15)
 		}
-		prompt := ui.TextArea(c.Key("prompt"), &a.prompt).Label("提示词").Placeholder("描述画面主体、光线、构图与风格").PlaceholderColor(placeholderColor).Lines(1, 12).MinHeight(composerPromptHeight).MaxHeight(promptMaxHeight).FillWidth().Padding(16).FontSize(textSize(c, composerPromptFontSize)).FontWeight(400).Background(ui.Transparent).Border(0, ui.Transparent).Radius(0).OnPaste(func(text string) bool {
+		prompt := ui.TextArea(c.Key("prompt"), &a.prompt).Label(locale.T("提示词")).Placeholder(locale.T("描述画面主体、光线、构图与风格")).PlaceholderColor(placeholderColor).Lines(1, 12).MinHeight(composerPromptHeight).MaxHeight(promptMaxHeight).FillWidth().Padding(16).FontSize(textSize(c, composerPromptFontSize)).FontWeight(400).Background(ui.Transparent).Border(0, ui.Transparent).Radius(0).OnPaste(func(text string) bool {
 			if text == "" {
 				a.importImages(a.desktop.PasteImages)
 				return true
@@ -68,12 +70,12 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 					ref := reference
 					ui.Box(c.Key("reference-"+ref.ID)).Size(64, 64).Children(func() {
 						if thumb := a.referenceThumbs[ref.ID]; thumb != nil {
-							ui.Image(c.Key("reference-image-"+ref.ID), thumb).Fill().Fit(ui.Contain).Radius(10).Border(1, c.Theme().Border).Label("标注编辑参考图 " + ref.Name).Focusable().OnClick(func() { a.openReference(ref) })
+							ui.Image(c.Key("reference-image-"+ref.ID), thumb).Fill().Fit(ui.Contain).Radius(10).Border(1, c.Theme().Border).Label(locale.T("标注编辑参考图 ") + ref.Name).Focusable().OnClick(func() { a.openReference(ref) })
 						}
 						if a.draftMarkup != "" {
-							ui.Text(c, "含标注").Absolute().Bottom(2).Left(4).Right(4).TextAlign(ui.Center).FontSize(textSize(c, 10)).Background(c.Theme().Surface).Radius(4)
+							ui.Text(c, locale.T("含标注")).Absolute().Bottom(2).Left(4).Right(4).TextAlign(ui.Center).FontSize(textSize(c, 10)).Background(c.Theme().Surface).Radius(4)
 						}
-						iconButton(c, "remove-reference-"+ref.ID, "移除参考图 "+ref.Name, "close").Absolute().Top(-7).Right(-7).Size(24, 24).Background(c.Theme().SurfaceHover).Radius(12).OnClick(func() { a.removeReference(ref.ID) })
+						iconButton(c, "remove-reference-"+ref.ID, locale.T("移除参考图 ")+ref.Name, "close").Absolute().Top(-7).Right(-7).Size(24, 24).Background(c.Theme().SurfaceHover).Radius(12).OnClick(func() { a.removeReference(ref.ID) })
 					})
 				}
 			})
@@ -81,22 +83,6 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 		a.generationToolbar(c, narrow)
 	})
 	ui.Row(c.Key("generation-summary")).FillWidth().Wrap().Gap(8).Padding(12, 0, 0, 0).Children(func() {
-		ui.Row(c).Wrap().Gap(8).Children(func() {
-			size := strings.ReplaceAll(a.requestSize(), "x", " × ") + " px"
-			if a.requestSize() == "auto" {
-				size = "自动尺寸"
-			}
-			price := a.priceLabel()
-			if a.outputFormat == "gif" {
-				size += " / 帧"
-				price = "GIF 费用以渠道账单为准"
-			}
-			ui.Text(c.Key("generation-size"), size).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-			if a.outputFormat == "gif" {
-				ui.Text(c.Key("gif-request-duration"), fmt.Sprintf("请求约 %.2g 秒", float64(a.gifFrameCount*a.gifFrameDurationMS)/1000)).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-			}
-			ui.Text(c.Key("generation-price"), price).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-		})
 		ui.Spacer(c)
 		ui.Row(c.Key("generation-shortcut")).Gap(4).AlignItems(ui.Center).Children(func() {
 			modifier := "Ctrl"
@@ -109,17 +95,14 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 		})
 	})
 	if utf8.RuneCountInString(a.prompt) > 20000 {
-		ui.Text(c, "提示词不能超过 20000 字。").TextColor(c.Theme().Danger)
-	}
-	if problem := a.gifOptionsProblem(); problem != "" {
-		ui.Text(c.Key("gif-options-problem"), problem).TextColor(c.Theme().Danger)
+		ui.Text(c, locale.T("提示词不能超过 20000 字。")).TextColor(c.Theme().Danger)
 	}
 }
 
 func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 	ui.Row(c.Key("generation-actions")).FillWidth().Wrap().Gap(8).Padding(composerToolbarPadding).Background(c.Theme().Surface).Children(func() {
 		ui.Row(c.Key("reference-actions")).Gap(4).Children(func() {
-			refs := ui.Button(c.Key("open-images"), "").Label("添加参考图").Height(composerControlHeight).Width(128).Padding(4, 12).Radius(8).Disabled(a.importing || len(a.references) >= 4 || a.draftMarkup != "")
+			refs := ui.Button(c.Key("open-images"), "").Label(locale.T("添加参考图")).Height(composerControlHeight).Width(128).Padding(4, 12).Radius(8).Disabled(a.importing || len(a.references) >= 4 || a.draftMarkup != "")
 			refs.Children(func() {
 				ui.Row(c).Center().Gap(8).Children(func() {
 					ui.Icon(c, icons["image"]).Size(16, 16)
@@ -127,7 +110,7 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 					if a.draftMarkup != "" {
 						limit = 1
 					}
-					ui.Text(c, fmt.Sprintf("参考图 %d/%d", len(a.references), limit)).FontSize(textSize(c, 14)).SingleLine()
+					ui.Text(c, fmt.Sprintf(locale.T("参考图 %d/%d"), len(a.references), limit)).FontSize(textSize(c, 14)).SingleLine()
 				})
 			})
 			if refs.Clicked() {
@@ -135,7 +118,7 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			}
 		})
 		labels, current, choices := a.modelChoices()
-		modelSelect := ui.Select(c.Key("model"), &current, labels).Label("模型").Width(256).MaxWidthPercent(100).Height(composerControlHeight).Padding(4, 12).Radius(8)
+		modelSelect := ui.Select(c.Key("model"), &current, labels).Label(locale.T("模型")).Width(256).MaxWidthPercent(100).Height(composerControlHeight).Padding(4, 12).Radius(8)
 		if narrow {
 			modelSelect.FillWidth()
 		}
@@ -159,9 +142,9 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			}
 			ratio, ratioOptions := a.ratio, ratios
 			if a.draftSize != "" {
-				ratio, ratioOptions = "沿用", append([]string{"沿用"}, ratios...)
+				ratio, ratioOptions = locale.T("沿用"), append([]string{locale.T("沿用")}, ratios...)
 			}
-			if ui.Select(c.Key("ratio"), &ratio, ratioOptions).Label("画面比例").Width(ratioWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && ratio != "沿用" {
+			if ui.Select(c.Key("ratio"), &ratio, ratioOptions).Label(locale.T("画面比例")).Width(ratioWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && ratio != locale.T("沿用") {
 				a.ratio, a.draftSize = ratio, ""
 				a.savePreferences()
 			}
@@ -174,9 +157,9 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			}
 			resolution := strings.ToUpper(a.resolution)
 			if a.draftSize != "" {
-				resolution, resolutions = "沿用", append([]string{"沿用"}, resolutions...)
+				resolution, resolutions = locale.T("沿用"), append([]string{locale.T("沿用")}, resolutions...)
 			}
-			if ui.Select(c.Key("resolution"), &resolution, resolutions).Label("分辨率").Width(resolutionWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && resolution != "沿用" {
+			if ui.Select(c.Key("resolution"), &resolution, resolutions).Label(locale.T("分辨率")).Width(resolutionWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && resolution != locale.T("沿用") {
 				a.resolution = strings.ToLower(resolution)
 				a.draftSize = ""
 				a.savePreferences()
@@ -187,15 +170,15 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			format = "WebP"
 		}
 		if format == "" {
-			format = "默认格式"
+			format = locale.T("默认格式")
 		}
-		formats := []string{"默认格式", "PNG", "JPEG", "WebP", "GIF", "SVG"}
+		formats := []string{locale.T("默认格式"), "PNG", "JPEG", "WebP", "GIF", "SVG"}
 		if a.draftMarkup != "" {
 			formats = formats[:4]
 		}
-		if ui.Select(c.Key("output-format"), &format, formats).Label("输出格式").Width(104).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+		if ui.Select(c.Key("output-format"), &format, formats).Label(locale.T("输出格式")).Width(104).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
 			a.outputFormat = strings.ToLower(format)
-			if format == "默认格式" {
+			if format == locale.T("默认格式") {
 				a.outputFormat = ""
 			}
 			a.savePreferences()
@@ -204,7 +187,7 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			a.gifTimingControls(c)
 		}
 		ui.Row(c.Key("generate-slot")).Grow(1).MinWidth(116).Justify(ui.End).Children(func() {
-			button := ui.PrimaryButton(c.Key("generate"), "开始生成").Label("开始生成").Height(composerControlHeight).Width(116).Padding(4, 12).Radius(8).Disabled(!a.canGenerate())
+			button := ui.PrimaryButton(c.Key("generate"), locale.T("开始生成")).Label(locale.T("开始生成")).Height(composerControlHeight).Width(116).Padding(4, 12).Radius(8).Disabled(!a.canGenerate())
 			if button.Clicked() {
 				a.generate()
 			}
@@ -220,11 +203,17 @@ func (a *App) modelChoices() ([]string, string, map[string]modelChoice) {
 	current := ""
 	counts := map[string]int{}
 	for _, p := range a.config.Providers {
+		if p.Disabled {
+			continue
+		}
 		for _, m := range p.Models {
 			counts[p.Name+" / "+m]++
 		}
 	}
 	for _, p := range a.config.Providers {
+		if p.Disabled {
+			continue
+		}
 		for _, m := range p.Models {
 			label := p.Name + " / " + m
 			if counts[label] > 1 {
@@ -253,14 +242,14 @@ func (a *App) clearInput() {
 
 func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
 	if a.draftMarkup != "" {
-		a.problem = "标注编辑仅支持一张参考图，请先移除当前图片后再添加。"
+		a.problem = locale.T("标注编辑仅支持一张参考图，请先移除当前图片后再添加。")
 		return
 	}
 	if a.importing {
 		return
 	}
 	if len(a.references) >= 4 {
-		a.problem = "最多添加 4 张参考图，请先移除一张。"
+		a.problem = locale.T("最多添加 4 张参考图，请先移除一张。")
 		return
 	}
 	remaining := 4 - len(a.references)
@@ -286,7 +275,7 @@ func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
 				}
 				thumbs[refs[i].ID], e = thumbnail(data, referenceThumbSize, referenceThumbSize)
 				if e != nil {
-					err = fmt.Errorf("参考图无法解码，请重新选择有效图片。")
+					err = errors.New(locale.T("参考图无法解码，请重新选择有效图片。"))
 					break
 				}
 			}
@@ -313,7 +302,7 @@ func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
 				accepted++
 			}
 			if truncated || accepted < len(refs) {
-				a.problem = "最多添加 4 张参考图，超出的图片未添加。"
+				a.problem = locale.T("最多添加 4 张参考图，超出的图片未添加。")
 			}
 		}
 	})
@@ -353,7 +342,7 @@ func (a *App) generate() {
 }
 
 func (a *App) startJob(args domain.GenerateArgs, name string) {
-	task := &job{Args: args, ProviderName: name, Progress: domain.Progress{JobID: args.JobID, Status: "generating", Stage: "准备请求"}}
+	task := &job{Args: args, ProviderName: name, Progress: domain.Progress{JobID: args.JobID, Status: "generating", Stage: locale.T("准备请求")}}
 	a.jobs = append([]*job{task}, a.jobs...)
 	a.problem = ""
 	a.notice = ""
@@ -362,7 +351,7 @@ func (a *App) startJob(args domain.GenerateArgs, name string) {
 		return func() {
 			if err != nil {
 				task.Progress.Status = "error"
-				task.Progress.Stage = "生成失败"
+				task.Progress.Stage = locale.T("生成失败")
 				task.Progress.Error = err.Error()
 				return
 			}
@@ -372,7 +361,7 @@ func (a *App) startJob(args domain.GenerateArgs, name string) {
 					break
 				}
 			}
-			a.showNotice("图片已生成并保存到本机作品库。")
+			a.showNotice(locale.T("图片已生成并保存到本机作品库。"))
 			a.refreshHistory()
 		}
 	})
@@ -448,9 +437,9 @@ func (a *App) requestPricing(id string, notify bool) {
 			}
 			if notify {
 				if err != nil {
-					a.problem = "暂时无法读取价格，请先保存服务配置后重试。"
+					a.problem = locale.T("暂时无法读取价格，请先保存服务配置后重试。")
 				} else {
-					a.showNotice("价格已更新。")
+					a.showNotice(locale.T("价格已更新。"))
 				}
 			}
 		}
@@ -459,14 +448,14 @@ func (a *App) requestPricing(id string, notify bool) {
 
 func (a *App) priceLabel() string {
 	if a.priceLoading[a.providerID] {
-		return "正在查询价格…"
+		return locale.T("正在查询价格…")
 	}
 	for _, price := range a.pricing[a.providerID] {
 		if price.Model == a.model {
 			if value, ok := price.Prices[a.resolution]; ok {
-				return fmt.Sprintf("%s %g / 张", price.Currency, value)
+				return fmt.Sprintf(locale.T("%s %g / 张"), price.Currency, value)
 			}
 		}
 	}
-	return "价格暂不可用"
+	return locale.T("价格暂不可用")
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"image"
+	"image2ai/internal/locale"
 	"io"
 	"math"
 	"strconv"
@@ -22,7 +23,7 @@ func isSVG(data []byte) bool {
 // SVGs are self-contained documents, never a source of file or network reads.
 // Limit geometry complexity before sending it to the bounded rasterizer.
 func svgSize(data []byte) (int, int, error) {
-	fail := errors.New("SVG 无效或包含不支持的外部资源、脚本、滤镜或过于复杂的图形。")
+	fail := errors.New(locale.T("SVG 无效或包含不支持的外部资源、脚本、滤镜或过于复杂的图形。"))
 	if len(data) == 0 || len(data) > 4<<20 {
 		return 0, 0, fail
 	}
@@ -200,7 +201,7 @@ func renderSVG(data []byte, maxW, maxH int) (result image.Image, resultErr error
 	defer func() {
 		if recover() != nil {
 			result = nil
-			resultErr = errors.New("SVG 无法渲染，请检查图形与字体。")
+			resultErr = errors.New(locale.T("SVG 无法渲染，请检查图形与字体。"))
 		}
 	}()
 	w, h, err := svgSize(data)
@@ -217,7 +218,7 @@ func renderSVG(data []byte, maxW, maxH int) (result image.Image, resultErr error
 	}
 	document, err := oksvg.ReadIconStream(bytes.NewReader(data), oksvg.IgnoreErrorMode)
 	if err != nil || document.ViewBox.W <= 0 || document.ViewBox.H <= 0 {
-		return nil, errors.New("SVG 无法渲染，请检查图形内容。")
+		return nil, errors.New(locale.T("SVG 无法渲染，请检查图形内容。"))
 	}
 	output := image.NewRGBA(image.Rect(0, 0, tw, th))
 	scanner := rasterx.NewScannerGV(tw, th, output, output.Bounds())

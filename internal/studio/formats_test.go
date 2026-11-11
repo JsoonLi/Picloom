@@ -2,6 +2,7 @@ package studio
 
 import (
 	"bytes"
+	"encoding/base64"
 	"image"
 	"image/color"
 	"image/gif"
@@ -13,6 +14,51 @@ import (
 
 	"image2ai/internal/domain"
 )
+
+func TestGIFReferenceCanGenerateFromButton(t *testing.T) {
+	for _, size := range [][2]int{{1280, 900}, {375, 812}} {
+		a, tt, b, d := fixture(t, size[0], size[1])
+		a.outputFormat = "gif"
+		a.prompt = "分析图片将它动起来"
+		a.gifSize, a.gifFrameCount, a.gifFrameDurationMS = "1024x1024", 9, 200
+		ref := domain.Reference{ID: "gif-reference", Name: "参考图.png", DataURL: "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.image)}
+		d.refs = []domain.Reference{ref}
+		tt.Frame()
+		click(t, tt, "添加参考图")
+		settle(a, tt)
+		if len(a.references) != 1 {
+			t.Fatal("reference was not imported")
+		}
+		if !a.canGenerate() {
+			t.Fatalf("reference GIF unexpectedly disabled: %s", a.gifOptionsProblem())
+		}
+		if output := os.Getenv("IMAGE2AI_GIF_SNAPSHOTS"); output != "" {
+			if err := os.MkdirAll(output, 0700); err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.Create(filepath.Join(output, "gif-reference-"+fmtSize(size)+".png"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = png.Encode(file, tt.Image())
+			file.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		b.generateStarted = make(chan domain.GenerateArgs, 1)
+		click(t, tt, "开始生成")
+		select {
+		case args := <-b.generateStarted:
+			if args.OutputFormat != "gif" || args.FrameCount != 9 || args.FrameDurationMS != 200 || args.Size != "1024x1024" || args.Prompt != "分析图片将它动起来" || len(args.ReferenceImages) != 1 || args.ReferenceImages[0] != ref.DataURL {
+				t.Fatalf("reference GIF request changed: %+v", args)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("generate button did not submit reference GIF")
+		}
+		settle(a, tt)
+	}
+}
 
 func TestOutputFormatSurvivesSettingsAndReachesGeneration(t *testing.T) {
 	for _, size := range [][2]int{{1280, 900}, {375, 812}} {

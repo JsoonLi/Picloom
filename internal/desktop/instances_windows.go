@@ -2,6 +2,7 @@
 
 package desktop
 
+import "image2ai/internal/locale"
 import (
 	"encoding/json"
 	"errors"
@@ -18,15 +19,15 @@ func CheckOtherInstances() error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	output, err := cmd.Output()
 	if err != nil {
-		return errors.New("无法检查旧版运行状态。请关闭其他 Picloom 或旧版 Image2AI 后重试。")
+		return errors.New(locale.T("无法检查旧版运行状态。请关闭其他 Picloom 或旧版 Image2AI 后重试。"))
 	}
 	var records []processInfo
 	if json.Unmarshal(output, &records) != nil {
-		return errors.New("无法检查旧版运行状态。请关闭其他 Picloom 或旧版 Image2AI 后重试。")
+		return errors.New(locale.T("无法检查旧版运行状态。请关闭其他 Picloom 或旧版 Image2AI 后重试。"))
 	}
 	for _, record := range records {
 		if conflictingInstance(record, os.Getpid()) {
-			return errors.New("其他 Picloom 或旧版 Image2AI 正在运行。请先关闭旧版，再启动原生版本，以保护配置和作品。")
+			return errors.New(locale.T("其他 Picloom 或旧版 Image2AI 正在运行。请先关闭旧版，再启动原生版本，以保护配置和作品。"))
 		}
 	}
 	return nil

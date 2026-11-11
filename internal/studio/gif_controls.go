@@ -2,6 +2,7 @@ package studio
 
 import (
 	"fmt"
+	"image2ai/internal/locale"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,16 +28,16 @@ func (a *App) gifSizeControl(c *ui.Context, narrow bool) {
 		if generation.GIFFrameLimit(size) < a.gifFrameCount {
 			continue
 		}
-		label := strings.ReplaceAll(size, "x", " × ") + " / 帧"
+		label := strings.ReplaceAll(size, "x", " × ") + locale.T(" / 帧")
 		labels = append(labels, label)
 		sizes[label] = size
 	}
-	current := strings.ReplaceAll(a.gifSize, "x", " × ") + " / 帧"
+	current := strings.ReplaceAll(a.gifSize, "x", " × ") + locale.T(" / 帧")
 	width := float32(192)
 	if narrow {
 		width = 160
 	}
-	if ui.Select(c.Key("gif-size"), &current, labels).Label("GIF 单帧尺寸").Width(width).MaxWidthPercent(100).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+	if ui.Select(c.Key("gif-size"), &current, labels).Label(locale.T("GIF 单帧尺寸")).Width(width).MaxWidthPercent(100).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
 		a.gifSize = sizes[current]
 		a.savePreferences()
 	}
@@ -61,24 +62,24 @@ func (a *App) gifTimingControls(c *ui.Context) {
 		options := []string{}
 		values := map[string]int{}
 		for _, n := range counts {
-			label := strconv.Itoa(n) + " 帧"
+			label := strconv.Itoa(n) + locale.T(" 帧")
 			options = append(options, label)
 			values[label] = n
 		}
-		selected := strconv.Itoa(a.gifFrameCount) + " 帧"
-		if ui.Select(c.Key("gif-frame-count"), &selected, options).Label("GIF 帧数").Tooltip(fmt.Sprintf("当前单帧尺寸最多 %d 帧；缩小单帧尺寸可选择更多帧。", limit)).Width(96).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+		selected := strconv.Itoa(a.gifFrameCount) + locale.T(" 帧")
+		if ui.Select(c.Key("gif-frame-count"), &selected, options).Label(locale.T("GIF 帧数")).Tooltip(fmt.Sprintf(locale.T("当前单帧尺寸最多 %d 帧；缩小单帧尺寸可选择更多帧。"), limit)).Width(96).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
 			a.gifFrameCount = values[selected]
 			a.savePreferences()
 		}
 		rates := []string{}
 		durations := map[string]int{}
 		for _, duration := range []int{2000, 1000, 500, 200, 100, 80, 50, 40, 20} {
-			label := fmt.Sprintf("%g 帧/秒", 1000/float64(duration))
+			label := fmt.Sprintf(locale.T("%g 帧/秒"), 1000/float64(duration))
 			rates = append(rates, label)
 			durations[label] = duration
 		}
-		rate := fmt.Sprintf("%g 帧/秒", 1000/float64(a.gifFrameDurationMS))
-		if ui.Select(c.Key("gif-frame-rate"), &rate, rates).Label("GIF 帧率").Tooltip("按此速度保存 GIF，保留渠道返回的全部画面和帧数。").Width(136).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
+		rate := fmt.Sprintf(locale.T("%g 帧/秒"), 1000/float64(a.gifFrameDurationMS))
+		if ui.Select(c.Key("gif-frame-rate"), &rate, rates).Label(locale.T("GIF 帧率")).Tooltip(locale.T("按此速度保存 GIF，保留渠道返回的全部画面和帧数。")).Width(136).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() {
 			a.gifFrameDurationMS = durations[rate]
 			a.savePreferences()
 		}
@@ -97,9 +98,6 @@ func intContains(values []int, value int) bool {
 func (a *App) gifOptionsProblem() string {
 	if a.outputFormat != "gif" {
 		return ""
-	}
-	if len(a.references) > 0 {
-		return "GIF 目前仅支持文生图，请移除参考图后生成。"
 	}
 	if err := generation.ValidateGIFSettings(a.gifSize, a.gifFrameCount, a.gifFrameDurationMS); err != nil {
 		return err.Error()

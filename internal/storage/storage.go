@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image2ai/internal/locale"
 	"io"
 	"io/fs"
 	"os"
@@ -25,8 +26,8 @@ const maxHistoryBytes = 64 * 1024 * 1024
 const maxImageBytes = 40 * 1024 * 1024
 const maxThumbnailBytes = 4 * 1024 * 1024
 
-var ErrClosed = errors.New("数据存储已关闭。")
-var errOutside = errors.New("禁止访问此文件或外部链接。")
+var ErrClosed error = locale.Error("数据存储已关闭。")
+var errOutside error = locale.Error("禁止访问此文件或外部链接。")
 var retryDelays = []time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond}
 
 type Store struct {
@@ -52,7 +53,7 @@ var _ domain.Store = (*Store)(nil)
 
 func Open(root string) (*Store, error) {
 	if strings.TrimSpace(root) == "" {
-		return nil, errors.New("数据目录不能为空。")
+		return nil, errors.New(locale.T("数据目录不能为空。"))
 	}
 	absolute, err := filepath.Abs(root)
 	if err != nil {
@@ -67,7 +68,7 @@ func Open(root string) (*Store, error) {
 	}
 	lock, err := acquireLock(filepath.Join(canonical, ".image2ai-native.lock"))
 	if err != nil {
-		return nil, fmt.Errorf("Picloom 数据目录正被其他进程使用，或无法锁定：%w", err)
+		return nil, fmt.Errorf(locale.T("Picloom 数据目录正被其他进程使用，或无法锁定：%w"), err)
 	}
 	s := &Store{root: canonical, originalRoot: absolute, lock: lock, replace: replaceFile}
 	if _, err = s.readConfig(); err == nil {
@@ -117,7 +118,7 @@ func (s *Store) UpdateConfig(change func(*domain.Config) error) (domain.Config, 
 		return domain.Config{}, err
 	}
 	if change == nil {
-		return domain.Config{}, errors.New("配置更新无效。")
+		return domain.Config{}, errors.New(locale.T("配置更新无效。"))
 	}
 	if err = change(&c); err != nil {
 		return domain.Config{}, err
@@ -127,7 +128,7 @@ func (s *Store) UpdateConfig(change func(*domain.Config) error) (domain.Config, 
 		return domain.Config{}, err
 	}
 	if err = validateConfig(data); err != nil {
-		return domain.Config{}, fmt.Errorf("配置更新无效：%w", err)
+		return domain.Config{}, fmt.Errorf(locale.T("配置更新无效：%w"), err)
 	}
 	if err = s.write("config.json", data, maxConfigBytes); err != nil {
 		return domain.Config{}, err
@@ -148,7 +149,7 @@ func (s *Store) ChangeHistory(change func(*[]domain.ImageRecord) error) error {
 		return err
 	}
 	if change == nil {
-		return errors.New("历史更新无效。")
+		return errors.New(locale.T("历史更新无效。"))
 	}
 	rows := slices.Clone(cached)
 	if err = change(&rows); err != nil {
@@ -167,7 +168,7 @@ func (s *Store) ChangeHistory(change func(*[]domain.ImageRecord) error) error {
 		return err
 	}
 	if err = validateHistory(data); err != nil {
-		return fmt.Errorf("历史更新无效：%w", err)
+		return fmt.Errorf(locale.T("历史更新无效：%w"), err)
 	}
 	s.history = nil
 	return s.write(filepath.Join("image-gen", "history.json"), data, maxHistoryBytes)
@@ -175,7 +176,7 @@ func (s *Store) ChangeHistory(change func(*[]domain.ImageRecord) error) error {
 
 func defaults() domain.Config {
 	return domain.Config{
-		Providers: []domain.Provider{{ID: "openai-compatible", Name: "OpenAI 兼容", BaseURL: "https://api.openai.com/v1", Models: []string{"gpt-image-1"}, Resolutions: []string{"2k", "4k"}, GenerationsPath: "/images/generations", EditsPath: "/images/edits"}},
+		Providers: []domain.Provider{{ID: "openai-compatible", Name: locale.T("OpenAI 兼容"), BaseURL: "https://api.openai.com/v1", Models: []string{"gpt-image-1"}, Resolutions: []string{"2k", "4k"}, GenerationsPath: "/images/generations", EditsPath: "/images/edits"}},
 		Proxy:     domain.ProxyConfig{Mode: "system", Bypass: "<local>,localhost,127.0.0.1"}, Theme: "system",
 		GenerationPreferences: domain.GenerationPreferences{Ratio: "3:4", Resolution: "2k"},
 	}
@@ -189,7 +190,7 @@ func (s *Store) readConfig() (domain.Config, error) {
 		return domain.Config{}, err
 	}
 	if err = validateConfig(raw); err != nil {
-		return domain.Config{}, fmt.Errorf("配置文件损坏，请备份后修复：%s", filepath.Join(s.root, "config.json"))
+		return domain.Config{}, fmt.Errorf(locale.T("配置文件损坏，请备份后修复：%s"), filepath.Join(s.root, "config.json"))
 	}
 	c := defaults()
 	if err = json.Unmarshal(raw, &c); err != nil {
@@ -237,7 +238,7 @@ func (s *Store) readHistory() ([]domain.ImageRecord, error) {
 		return nil, err
 	}
 	if err = validateHistory(raw); err != nil {
-		return nil, fmt.Errorf("历史记录文件损坏，请备份后修复：%s", filepath.Join(s.root, relative))
+		return nil, fmt.Errorf(locale.T("历史记录文件损坏，请备份后修复：%s"), filepath.Join(s.root, relative))
 	}
 	var rows []domain.ImageRecord
 	if err = json.Unmarshal(raw, &rows); err != nil {
@@ -269,23 +270,23 @@ func readBounded(f *os.File, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("只能读取普通文件。")
+		return nil, errors.New(locale.T("只能读取普通文件。"))
 	}
 	if info.Size() > limit {
-		return nil, errors.New("文件超过允许的大小。")
+		return nil, errors.New(locale.T("文件超过允许的大小。"))
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(raw)) > limit {
-		return nil, errors.New("文件超过允许的大小。")
+		return nil, errors.New(locale.T("文件超过允许的大小。"))
 	}
 	return raw, nil
 }
 func (s *Store) write(relative string, data []byte, limit int) error {
 	if len(data) > limit {
-		return errors.New("写入内容超过允许的大小。")
+		return errors.New(locale.T("写入内容超过允许的大小。"))
 	}
 	destination := filepath.Join(s.root, relative)
 	directory := filepath.Dir(destination)
@@ -413,7 +414,7 @@ func (s *Store) Favorite(id string, value bool) (domain.ImageRecord, error) {
 				return nil
 			}
 		}
-		return errors.New("历史记录不存在。")
+		return errors.New(locale.T("历史记录不存在。"))
 	})
 	return result, err
 }
@@ -432,7 +433,7 @@ func (s *Store) find(id string) (domain.ImageRecord, error) {
 			return row, nil
 		}
 	}
-	return domain.ImageRecord{}, errors.New("历史记录不存在。")
+	return domain.ImageRecord{}, errors.New(locale.T("历史记录不存在。"))
 }
 func (s *Store) ReadImage(id string) ([]byte, error) {
 	row, err := s.find(id)
@@ -443,14 +444,14 @@ func (s *Store) ReadImage(id string) ([]byte, error) {
 }
 func (s *Store) ReadReference(id string, index int) ([]byte, error) {
 	if index < 0 || index > 3 {
-		return nil, errors.New("参考图序号无效。")
+		return nil, errors.New(locale.T("参考图序号无效。"))
 	}
 	row, err := s.find(id)
 	if err != nil {
 		return nil, err
 	}
 	if index >= len(row.ReferencePaths) {
-		return nil, errors.New("参考图不存在。")
+		return nil, errors.New(locale.T("参考图不存在。"))
 	}
 	return s.readOwned(row.ReferencePaths[index], "references")
 }
@@ -513,10 +514,41 @@ func (s *Store) removeThumbnails(id string) error {
 	return nil
 }
 
+// ownedRoot opens the folder holding an image the app saved: under the data
+// directory, or under a folder chosen for works now or before.
 func (s *Store) ownedRoot(file, bucket string) (*os.Root, string, error) {
-	directory := filepath.Join(s.root, "image-gen", bucket)
+	root, relative, err := s.ownedIn(file, filepath.Join(s.root, "image-gen", bucket), s.root, true)
+	if !errors.Is(err, errOutside) {
+		return root, relative, err
+	}
+	config, e := s.ReadConfig()
+	if e != nil {
+		return nil, "", errOutside
+	}
+	for _, base := range append([]string{config.ImageDirectory}, config.PreviousImageDirectories...) {
+		if base == "" || !filepath.IsAbs(base) {
+			continue
+		}
+		// Generation stores canonical paths; older settings may name an alias.
+		if canonical, e := filepath.EvalSymlinks(base); e == nil && canonical != base {
+			root, relative, err = s.ownedIn(file, filepath.Join(canonical, bucket), canonical, false)
+			if !errors.Is(err, errOutside) {
+				return root, relative, err
+			}
+		}
+		root, relative, err = s.ownedIn(file, filepath.Join(base, bucket), base, false)
+		if !errors.Is(err, errOutside) {
+			return root, relative, err
+		}
+	}
+	return nil, "", errOutside
+}
+
+// ownedIn opens directory when file lies inside it and no link leads out of
+// container. alias maps legacy paths through the data directory's alias.
+func (s *Store) ownedIn(file, directory, container string, alias bool) (*os.Root, string, error) {
 	absolute, err := filepath.Abs(file)
-	if err == nil && s.originalRoot != s.root && within(absolute, s.originalRoot) {
+	if err == nil && alias && s.originalRoot != s.root && within(absolute, s.originalRoot) {
 		relative, e := filepath.Rel(s.originalRoot, absolute)
 		if e != nil {
 			return nil, "", errOutside
@@ -526,11 +558,16 @@ func (s *Store) ownedRoot(file, bucket string) (*os.Root, string, error) {
 	if err != nil || !within(absolute, directory) {
 		return nil, "", errOutside
 	}
+	if !alias {
+		if container, err = filepath.EvalSymlinks(container); err != nil {
+			return nil, "", err
+		}
+	}
 	canonical, err := filepath.EvalSymlinks(directory)
 	if err != nil {
 		return nil, "", err
 	}
-	if !within(canonical, s.root) {
+	if !within(canonical, container) {
 		return nil, "", errOutside
 	}
 	relative, err := filepath.Rel(directory, absolute)
@@ -571,7 +608,7 @@ func (s *Store) Delete(id string) error {
 				return nil
 			}
 		}
-		return errors.New("历史记录不存在。")
+		return errors.New(locale.T("历史记录不存在。"))
 	})
 	if err != nil {
 		return err
@@ -609,17 +646,17 @@ func (s *Store) BackupLegacy() error {
 	destination := filepath.Join(s.root, "native-backup-v1")
 	if info, err := os.Lstat(destination); err == nil {
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("原生迁移备份路径无效。")
+			return errors.New(locale.T("原生迁移备份路径无效。"))
 		}
 		raw, err := s.readMetadata(filepath.Join("native-backup-v1", "complete.json"), 1024)
 		if err != nil {
-			return fmt.Errorf("迁移备份不完整，请保留现有备份后重试：%w", err)
+			return fmt.Errorf(locale.T("迁移备份不完整，请保留现有备份后重试：%w"), err)
 		}
 		var marker struct {
 			Version int `json:"version"`
 		}
 		if json.Unmarshal(raw, &marker) != nil || marker.Version != 1 {
-			return errors.New("迁移备份标记无效。")
+			return errors.New(locale.T("迁移备份标记无效。"))
 		}
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {

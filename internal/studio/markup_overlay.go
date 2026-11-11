@@ -1,8 +1,9 @@
 package studio
 
+import "errors"
+import "image2ai/internal/locale"
 import (
 	"bytes"
-	"fmt"
 	"image"
 	"image/draw"
 	"image/png"
@@ -18,7 +19,7 @@ func readMarkupPNG(value string, size image.Point) (image.Image, error) {
 	}
 	actual, err := generation.ImageSize(data)
 	if err != nil || actual != size || mime != "image/png" {
-		return nil, fmt.Errorf("原标注层必须为同尺寸的 PNG 图片。")
+		return nil, errors.New(locale.T("原标注层必须为同尺寸的 PNG 图片。"))
 	}
 	return png.Decode(bytes.NewReader(data))
 }
@@ -68,7 +69,7 @@ func renderMarkupOverlay(size image.Point, strokes []generation.MarkupStroke, ba
 		return "", err
 	}
 	if encoded.Len() > generation.MaxReferenceBytes {
-		return "", fmt.Errorf("标注层超过 20 MB，请减少标注后重试。")
+		return "", errors.New(locale.T("标注层超过 20 MB，请减少标注后重试。"))
 	}
 	return generation.DataURL(encoded.Bytes(), "image/png"), nil
 }

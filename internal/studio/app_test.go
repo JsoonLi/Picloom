@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"image2ai/internal/locale"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -78,6 +79,18 @@ func (b *testBackend) SaveProxy(p domain.ProxyConfig) (domain.Config, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.config.Proxy = p
+	return b.config, nil
+}
+func (b *testBackend) SaveImageDirectory(dir string) (domain.Config, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.config.ImageDirectory = dir
+	return b.config, nil
+}
+func (b *testBackend) SaveLanguage(language string) (domain.Config, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.config.Language = language
 	return b.config, nil
 }
 func (b *testBackend) SaveTheme(s string) (domain.Config, error) {
@@ -151,16 +164,21 @@ func (b *testBackend) Delete(id string) error {
 
 type testDesktop struct {
 	domain.Desktop
-	updatesMu    sync.Mutex
-	updates      domain.UpdateStatus
-	updateChecks int
-	refs         []domain.Reference
-	exportSaved  bool
-	copied       string
-	theme        string
+	updatesMu       sync.Mutex
+	updates         domain.UpdateStatus
+	updateChecks    int
+	refs            []domain.Reference
+	exportSaved     bool
+	copied          string
+	theme           string
+	chosenDirectory string
+	language        string
 }
 
 func (d *testDesktop) DataDir() string { return "isolated-test-data" }
+func (d *testDesktop) ChooseDirectory(string, string) (string, bool, error) {
+	return d.chosenDirectory, d.chosenDirectory != "", nil
+}
 func (d *testDesktop) UpdateStatus() domain.UpdateStatus {
 	d.updatesMu.Lock()
 	defer d.updatesMu.Unlock()
@@ -185,6 +203,15 @@ func (d *testDesktop) CopyImage(string) error                                { r
 func (d *testDesktop) CopyText(text string) error                            { d.copied = text; return nil }
 func (d *testDesktop) ExportImage(string) (bool, error)                      { return d.exportSaved, nil }
 func (d *testDesktop) SetTheme(theme string)                                 { d.theme = theme }
+func (d *testDesktop) SetLanguage(tag string) string {
+	d.language = tag
+	shown := locale.Chinese
+	if tag == locale.English {
+		shown = locale.English
+	}
+	locale.Set(shown)
+	return shown
+}
 
 func settle(a *App, tt *ui.Tester) {
 	for i := 0; i < 5; i++ {

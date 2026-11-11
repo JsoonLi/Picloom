@@ -240,7 +240,7 @@ func run() error {
 		}
 	}))
 	defer server.Close()
-	config := domain.Config{Theme: "system", Proxy: domain.ProxyConfig{Mode: "direct", Bypass: "<local>,localhost,127.0.0.1"}, Providers: []domain.Provider{{ID: "mock", Name: "本地模拟服务", BaseURL: server.URL + "/v1", APIKey: "synthetic-key", Models: []string{"mock-image"}, Resolutions: []string{"2k", "4k"}, GenerationsPath: "/images/generations", EditsPath: "/images/edits"}}, GenerationPreferences: domain.GenerationPreferences{ProviderID: "mock", Model: "mock-image", Ratio: "3:4", Resolution: "2k"}}
+	config := domain.Config{Language: "zh-Hans", Theme: "system", Proxy: domain.ProxyConfig{Mode: "direct", Bypass: "<local>,localhost,127.0.0.1"}, Providers: []domain.Provider{{ID: "mock", Name: "本地模拟服务", BaseURL: server.URL + "/v1", APIKey: "synthetic-key", Models: []string{"mock-image"}, Resolutions: []string{"2k", "4k"}, GenerationsPath: "/images/generations", EditsPath: "/images/edits"}}, GenerationPreferences: domain.GenerationPreferences{ProviderID: "mock", Model: "mock-image", Ratio: "3:4", Resolution: "2k"}}
 	configBytes, _ := json.MarshalIndent(config, "", "  ")
 	if err = os.WriteFile(filepath.Join(root, "config.json"), configBytes, 0600); err != nil {
 		return err
@@ -542,9 +542,6 @@ func run() error {
 			return err
 		}
 		_, _ = c.call("idle", map[string]any{"timeout": 2000})
-	}
-	if err = c.act("save-theme", "press", ""); err != nil {
-		return err
 	}
 	if err = c.wait("浅色持久化", func(_ []node) bool {
 		var cfg domain.Config

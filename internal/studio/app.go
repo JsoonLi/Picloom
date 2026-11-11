@@ -6,9 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	_ "image/jpeg"
 	_ "image/png"
+	"image2ai/internal/locale"
 	"math"
 	"runtime"
 	"strings"
@@ -42,6 +44,7 @@ type App struct {
 	window                                       *mygo.Window
 	pending                                      chan func()
 	workers                                      sync.WaitGroup
+	settingsWrites                               sync.WaitGroup
 	started, loaded, importing                   bool
 	config                                       domain.Config
 	prompt, providerID, model, ratio, resolution string
@@ -98,10 +101,13 @@ type App struct {
 	draftModelOptions                            map[string][]string
 	draftProxy                                   domain.ProxyConfig
 	draftTheme                                   string
+	draftLanguage                                string
 	saving                                       bool
 	discoverBusy                                 bool
 	modelRequest                                 uint64
 	providerDeleteOpen                           bool
+	autosave                                     settingsAutosave
+	showAPIKey                                   bool
 }
 
 func New(backend domain.Backend, desktop domain.Desktop) *App {
@@ -117,8 +123,13 @@ func New(backend domain.Backend, desktop domain.Desktop) *App {
 
 func (a *App) SetWindow(w *mygo.Window) { a.windowMu.Lock(); a.window = w; a.windowMu.Unlock() }
 
-// Close stops outstanding requests; the owner should call it when the app quits.
-func (a *App) Close() { a.cancel() }
+// Close cancels remote requests and persists pending settings before the owner
+// closes storage. Only local settings writes need to finish before the flush.
+func (a *App) Close() {
+	a.cancel()
+	a.settingsWrites.Wait()
+	a.flushSettingsOnClose()
+}
 
 func (a *App) post(fn func()) {
 	select {
@@ -217,10 +228,10 @@ func (a *App) View(c *ui.Context) {
 				if !a.loaded {
 					ui.Column(c).Padding(40, 0).Gap(16).Children(func() {
 						if a.historyLoading {
-							ui.Text(c, "正在打开工作台…").TextColor(c.Theme().TextMuted)
+							ui.Text(c, locale.T("正在打开工作台…")).TextColor(c.Theme().TextMuted)
 						} else {
 							a.messages(c)
-							if ui.Button(c.Key("reload-startup"), "重新读取").Clicked() {
+							if ui.Button(c.Key("reload-startup"), locale.T("重新读取")).Clicked() {
 								a.start()
 							}
 						}
@@ -248,7 +259,7 @@ func (a *App) View(c *ui.Context) {
 			glassPane(c, "notice-pane").MaxWidth(max(200, width-40)).Padding(10, 14).Radius(14).Children(func() {
 				ui.Row(c).Gap(10).Children(func() {
 					ui.Text(c.Key("notice"), a.notice).FontSize(textSize(c, 13))
-					if iconButton(c, "dismiss-notice", "关闭通知", "close").Size(26, 26).Clicked() {
+					if iconButton(c, "dismiss-notice", locale.T("关闭通知"), "close").Size(26, 26).Clicked() {
 						a.notice = ""
 					}
 				})
@@ -256,8 +267,9 @@ func (a *App) View(c *ui.Context) {
 		})
 	}
 	a.settings(c, narrow)
+	a.runSettingsSaves(c)
 	a.preview(c, narrow)
-	if ui.AlertDialog(c.Key("delete-artwork-dialog"), &a.deleteOpen, "删除作品？", "作品和关联参考图将从本机删除，此操作无法撤销。", "取消", "删除作品") == 1 {
+	if ui.AlertDialog(c.Key("delete-artwork-dialog"), &a.deleteOpen, locale.T("删除作品？"), locale.T("作品和关联参考图将从本机删除，此操作无法撤销。"), locale.T("取消"), locale.T("删除作品")) == 1 {
 		a.deleteArtwork(a.deleteID)
 	}
 	if !a.settingsOpen && !a.previewOpen && !a.deleteOpen {
@@ -298,8 +310,8 @@ func (a *App) titlebar(c *ui.Context) {
 		ui.Box(c.Key("titlebar-drag")).Grow(1).FillHeight().DragWindow()
 		if runtime.GOOS != "darwin" {
 			ui.Row(c).Gap(2).Padding(0, 8).AlignItems(ui.Center).Children(func() {
-				iconButton(c, "window-minimize", "最小化窗口", "minimize").Size(28, 28).OnClick(func() { a.withWindow(func(w *mygo.Window) { w.Minimize() }) })
-				iconButton(c, "window-maximize", "最大化或还原窗口", "maximize").Size(28, 28).OnClick(func() {
+				iconButton(c, "window-minimize", locale.T("最小化窗口"), "minimize").Size(28, 28).OnClick(func() { a.withWindow(func(w *mygo.Window) { w.Minimize() }) })
+				iconButton(c, "window-maximize", locale.T("最大化或还原窗口"), "maximize").Size(28, 28).OnClick(func() {
 					a.withWindow(func(w *mygo.Window) {
 						if w.IsMaximized() {
 							w.Unmaximize()
@@ -308,7 +320,7 @@ func (a *App) titlebar(c *ui.Context) {
 						}
 					})
 				})
-				iconButton(c, "window-close", "关闭程序", "close").Size(28, 28).OnClick(func() { a.withWindow(func(w *mygo.Window) { w.Close() }) })
+				iconButton(c, "window-close", locale.T("关闭程序"), "close").Size(28, 28).OnClick(func() { a.withWindow(func(w *mygo.Window) { w.Close() }) })
 			})
 		}
 	})
@@ -324,8 +336,8 @@ func (a *App) withWindow(fn func(*mygo.Window)) {
 func (a *App) messages(c *ui.Context) {
 	if a.problem != "" {
 		ui.Row(c.Key("error-message")).FillWidth().Gap(8).Padding(12).Margin(16, 0, 0, 0).Background(c.Theme().Surface).Radius(12).Children(func() {
-			ui.Text(c, a.problem).Grow(1).TextColor(c.Theme().Danger).Label("错误：" + a.problem)
-			if iconButton(c, "dismiss-error", "关闭提示", "close").Clicked() {
+			ui.Text(c, a.problem).Grow(1).TextColor(c.Theme().Danger).Label(locale.T("错误：") + a.problem)
+			if iconButton(c, "dismiss-error", locale.T("关闭提示"), "close").Clicked() {
 				a.problem = ""
 			}
 		})
@@ -338,9 +350,14 @@ func (a *App) reconcileSelection() {
 		a.ratio = "3:4"
 	}
 	p := a.provider()
-	if p == nil && len(a.config.Providers) > 0 {
-		a.providerID = a.config.Providers[0].ID
-		p = a.provider()
+	if p == nil {
+		for _, candidate := range a.config.Providers {
+			if !candidate.Disabled {
+				a.providerID = candidate.ID
+				p = a.provider()
+				break
+			}
+		}
 	}
 	if p == nil {
 		a.model = ""
@@ -366,9 +383,10 @@ func providerDefaultResolution(p *domain.Provider) string {
 	return "2k"
 }
 
+// provider is the selected provider while it is enabled.
 func (a *App) provider() *domain.Provider {
 	for i := range a.config.Providers {
-		if a.config.Providers[i].ID == a.providerID {
+		if a.config.Providers[i].ID == a.providerID && !a.config.Providers[i].Disabled {
 			return &a.config.Providers[i]
 		}
 	}
@@ -439,7 +457,7 @@ func computeSize(ratio, resolution string) string {
 func referenceBytes(ref domain.Reference) ([]byte, error) {
 	_, value, ok := strings.Cut(ref.DataURL, ",")
 	if !ok {
-		return nil, fmt.Errorf("参考图数据无效。")
+		return nil, errors.New(locale.T("参考图数据无效。"))
 	}
 	return base64.StdEncoding.DecodeString(value)
 }

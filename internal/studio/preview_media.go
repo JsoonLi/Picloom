@@ -1,5 +1,6 @@
 package studio
 
+import "image2ai/internal/locale"
 import (
 	"fmt"
 
@@ -89,12 +90,12 @@ func (a *App) selectPreviewImage(record domain.ImageRecord, selected int) {
 }
 
 func (a *App) previewImageStrip(c *ui.Context, record domain.ImageRecord) {
-	ui.Text(c, "结果与参考图").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-	ui.Row(c.Key("preview-image-choices")).Label("预览图片选择").Role(ui.RoleRadioGroup).FillWidth().Wrap().Gap(8).Children(func() {
+	ui.Text(c, locale.T("结果与参考图")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	ui.Row(c.Key("preview-image-choices")).Label(locale.T("预览图片选择")).Role(ui.RoleRadioGroup).FillWidth().Wrap().Gap(8).Children(func() {
 		for selected := 0; selected <= len(a.previewMedia.references); selected++ {
-			label, key, bitmap := "结果图", "preview-result-thumbnail", a.previewMedia.result
+			label, key, bitmap := locale.T("结果图"), "preview-result-thumbnail", a.previewMedia.result
 			if selected > 0 {
-				label, key = fmt.Sprintf("参考图 %d", selected), fmt.Sprintf("saved-reference-%d", selected-1)
+				label, key = fmt.Sprintf(locale.T("参考图 %d"), selected), fmt.Sprintf("saved-reference-%d", selected-1)
 				bitmap = a.previewMedia.references[selected-1]
 			}
 			current := selected == a.previewMedia.selected
@@ -102,16 +103,16 @@ func (a *App) previewImageStrip(c *ui.Context, record domain.ImageRecord) {
 			if current {
 				border, background = c.Theme().Focus, c.Theme().SurfaceHover
 			}
-			button := ui.Button(c.Key(key), "").Label(label).Tooltip("放大查看"+label).Role(ui.RoleRadio).Checked(current).Size(76, 92).Padding(4).Border(2, border).Background(background).Radius(10)
+			button := ui.Button(c.Key(key), "").Label(label).Tooltip(locale.T("放大查看")+label).Role(ui.RoleRadio).Checked(current).Size(76, 92).Padding(4).Border(2, border).Background(background).Radius(10)
 			button.Children(func() {
 				ui.Column(c).Center().Gap(4).Children(func() {
 					ui.Box(c).Size(60, 60).Radius(6).Clip().Background(c.Theme().Surface).Children(func() {
 						if bitmap != nil {
 							ui.Image(c, bitmap).Fill().Fit(ui.Contain)
 						} else {
-							message := "加载中"
+							message := locale.T("加载中")
 							if selected < len(a.previewMedia.problems) && a.previewMedia.problems[selected] != "" {
-								message = "不可用"
+								message = locale.T("不可用")
 							}
 							ui.Text(c, message).Fill().TextAlign(ui.Center).FontSize(textSize(c, 11)).TextColor(c.Theme().TextMuted)
 						}

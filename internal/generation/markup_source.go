@@ -1,5 +1,6 @@
 package generation
 
+import "image2ai/internal/locale"
 import (
 	"bytes"
 	"encoding/binary"
@@ -17,16 +18,16 @@ func PrepareMarkupSource(data []byte) ([]byte, string, image.Point, error) {
 		return nil, "", image.Point{}, err
 	}
 	if mime != "image/png" && mime != "image/jpeg" && mime != "image/webp" {
-		return nil, "", image.Point{}, errors.New("标注编辑支持 PNG、JPEG 或 WebP 原图，请先转换图片格式。")
+		return nil, "", image.Point{}, errors.New(locale.T("标注编辑支持 PNG、JPEG 或 WebP 原图，请先转换图片格式。"))
 	}
 	if !validMarkupSize(image.Pt(w, h)) {
-		return nil, "", image.Point{}, errors.New("原图尺寸过大，无法添加标注。")
+		return nil, "", image.Point{}, errors.New(locale.T("原图尺寸过大，无法添加标注。"))
 	}
 	if mime == "image/jpeg" {
 		if orientation := jpegOrientation(data); orientation > 1 {
 			source, _, e := image.Decode(bytes.NewReader(data))
 			if e != nil {
-				return nil, "", image.Point{}, errors.New("原图无法解码。")
+				return nil, "", image.Point{}, errors.New(locale.T("原图无法解码。"))
 			}
 			w, h = source.Bounds().Dx(), source.Bounds().Dy()
 			if orientation >= 5 {
@@ -64,7 +65,7 @@ func PrepareMarkupSource(data []byte) ([]byte, string, image.Point, error) {
 		}
 	}
 	if len(data) > MaxReferenceBytes {
-		return nil, "", image.Point{}, errors.New("原图校正后超过 20 MB，请缩小图片再添加标注。")
+		return nil, "", image.Point{}, errors.New(locale.T("原图校正后超过 20 MB，请缩小图片再添加标注。"))
 	}
 	return data, mime, image.Pt(w, h), nil
 }

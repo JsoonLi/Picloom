@@ -1,5 +1,6 @@
 package generation
 
+import "image2ai/internal/locale"
 import (
 	"bytes"
 	"errors"
@@ -53,17 +54,17 @@ func validMarkupSize(size image.Point) bool {
 // Rasterization/encoding must be called by a worker, never during a UI frame.
 func RenderMarkupPNG(size image.Point, strokes []MarkupStroke) ([]byte, error) {
 	if !validMarkupSize(size) || len(strokes) == 0 || len(strokes) > MaxMarkupStrokes {
-		return nil, errors.New("请先在图片上添加标注（最多 256 笔）。")
+		return nil, errors.New(locale.T("请先在图片上添加标注（最多 256 笔）。"))
 	}
 	total := 0
 	for _, s := range strokes {
 		total += len(s.Points)
 		if len(s.Points) == 0 || total > MaxMarkupPoints || (s.Tool != "pen" && s.Tool != "rectangle" && s.Tool != "ellipse") || !finite(s.Width) || s.Width <= 0 || s.Width > float32(max(size.X, size.Y)) {
-			return nil, errors.New("标注数据无效或过多，请撤销部分标注后重试。")
+			return nil, errors.New(locale.T("标注数据无效或过多，请撤销部分标注后重试。"))
 		}
 		for _, p := range s.Points {
 			if !finite(p[0]) || !finite(p[1]) || p[0] < 0 || p[1] < 0 || p[0] > float32(size.X) || p[1] > float32(size.Y) {
-				return nil, errors.New("标注坐标超出原图范围。")
+				return nil, errors.New(locale.T("标注坐标超出原图范围。"))
 			}
 		}
 	}
@@ -94,10 +95,10 @@ func RenderMarkupPNG(size image.Point, strokes []MarkupStroke) ([]byte, error) {
 	z.Draw(out, out.Bounds(), image.NewUniform(MarkupColor), image.Point{})
 	var data bytes.Buffer
 	if err := png.Encode(&data, out); err != nil {
-		return nil, errors.New("无法生成标注层，请重试。")
+		return nil, errors.New(locale.T("无法生成标注层，请重试。"))
 	}
 	if data.Len() > MaxReferenceBytes {
-		return nil, errors.New("标注层超过 20 MB，请减少标注后重试。")
+		return nil, errors.New(locale.T("标注层超过 20 MB，请减少标注后重试。"))
 	}
 	return data.Bytes(), nil
 }
@@ -118,23 +119,23 @@ func markupDisc(z *vector.Rasterizer, x, y, r float32) {
 func validateMarkup(value string, source []byte) ([]byte, error) {
 	header, _, _ := strings.Cut(value, ",")
 	if !strings.EqualFold(header, "data:image/png;base64") {
-		return nil, errors.New("标注层必须是透明 PNG 图片。")
+		return nil, errors.New(locale.T("标注层必须是透明 PNG 图片。"))
 	}
 	data, err := dataURL(value, MaxReferenceBytes)
 	if err != nil {
-		return nil, errors.New("标注层数据无效或超过 20 MB。")
+		return nil, errors.New(locale.T("标注层数据无效或超过 20 MB。"))
 	}
 	size, err := ImageSize(data)
 	if err != nil || !validMarkupSize(size) {
-		return nil, errors.New("标注层尺寸无效。")
+		return nil, errors.New(locale.T("标注层尺寸无效。"))
 	}
 	original, err := ImageSize(source)
 	if err != nil || original != size {
-		return nil, errors.New("标注层尺寸必须与原图一致。")
+		return nil, errors.New(locale.T("标注层尺寸必须与原图一致。"))
 	}
 	img, err := png.Decode(bytes.NewReader(data))
 	if err != nil {
-		return nil, errors.New("标注层不是完整的 PNG 图片。")
+		return nil, errors.New(locale.T("标注层不是完整的 PNG 图片。"))
 	}
 	transparent, marked := false, false
 	for y := 0; y < size.Y && !(transparent && marked); y++ {
@@ -145,7 +146,7 @@ func validateMarkup(value string, source []byte) ([]byte, error) {
 		}
 	}
 	if !transparent || !marked {
-		return nil, errors.New("请使用背景透明且包含可见标注的 PNG 标注层。")
+		return nil, errors.New(locale.T("请使用背景透明且包含可见标注的 PNG 标注层。"))
 	}
 	return data, nil
 }

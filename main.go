@@ -1,5 +1,6 @@
 package main
 
+import "image2ai/internal/locale"
 import (
 	"fmt"
 	"os"
@@ -28,11 +29,12 @@ func main() {
 func run() error {
 	root, err := userDataRoot(os.Getenv("IMAGE2AI_USER_DATA"))
 	if err != nil {
-		return fmt.Errorf("数据目录无效：%w", err)
+		return fmt.Errorf(locale.T("数据目录无效：%w"), err)
 	}
 	// Keep the established data and lock location when the app is renamed.
 	mygo.App.SetPath(mygo.PathUserData, root)
 	mygo.App.SetName("Picloom")
+	mygo.App.SetLanguages(locale.Supported...)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
 	}
@@ -87,7 +89,7 @@ func run() error {
 	}()
 	if startupErr != nil {
 		mygo.App.WhenReady(func() {
-			mygo.Dialog.Error("Picloom 无法启动", startupErr.Error())
+			mygo.Dialog.Error(locale.T("Picloom 无法启动"), startupErr.Error())
 			mygo.App.Quit()
 		})
 		if err := mygo.App.Run(); err != nil {
@@ -98,7 +100,7 @@ func run() error {
 	mygo.App.WhenReady(func() {
 		fail := func(err error) {
 			rootErr = err
-			mygo.Dialog.Error("Picloom 无法启动", err.Error())
+			mygo.Dialog.Error(locale.T("Picloom 无法启动"), err.Error())
 			mygo.App.Quit()
 		}
 		if err := system.InitializeUpdates(); err != nil {
@@ -106,6 +108,7 @@ func run() error {
 			return
 		}
 		system.SetTheme(config.Theme)
+		system.SetLanguage(config.Language)
 		studioApp = studio.New(backend, system)
 		stopUpdateEvents = updater.OnChange(studioApp.RefreshUpdates)
 		if runtime.GOOS == "darwin" {
@@ -114,7 +117,7 @@ func run() error {
 			checkUpdates.Click = func(*mygo.MenuItem, *mygo.Window) {
 				go func() {
 					if err := system.CheckForUpdates(); err != nil {
-						mygo.RunOnMain(func() { mygo.Dialog.Error("无法检查更新", err.Error()) })
+						mygo.RunOnMain(func() { mygo.Dialog.Error(locale.T("无法检查更新"), err.Error()) })
 					}
 				}()
 			}
@@ -128,15 +131,16 @@ func run() error {
 				{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
 			}))
 		}
-		window = mygo.NewWindow(mygo.WindowOptions{Title: "Picloom · 绘织", Width: 1280, Height: 880, MinWidth: 740, MinHeight: 560, StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, HideWindowButtons: runtime.GOOS == "windows", Content: ui.View(studioApp.View)})
+		window = mygo.NewWindow(mygo.WindowOptions{Title: locale.T("Picloom · 绘织"), Width: 1280, Height: 880, MinWidth: 740, MinHeight: 560, StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, HideWindowButtons: runtime.GOOS == "windows", Content: ui.View(studioApp.View)})
 		system.SetWindow(window)
 		studioApp.SetWindow(window)
 		mygo.App.OnWillQuit(func(_ *mygo.QuitEvent) { closeStore() })
 	})
 	// Register after the studio's ready handler: data ownership and migration
 	// checks must complete before the plugin starts its background work.
-	mygo.Use(updatewindow.New(updater.Options{Language: "zh-Hans", Strings: map[string]updater.Strings{
+	mygo.Use(updatewindow.New(updater.Options{Strings: map[string]updater.Strings{
 		"zh-Hans": {ReadyMessage: "%[1]s %[2]s 已安装，下次启动时生效。立即重启会结束当前任务，请先保存草稿。", Relaunch: "立即重启"},
+		"en":      {ReadyMessage: "%[1]s %[2]s is installed and takes effect next launch. Restarting now ends running tasks, so save your draft first.", Relaunch: "Restart now"},
 	}}))
 	if err := mygo.App.Run(); err != nil {
 		return err

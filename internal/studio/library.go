@@ -1,5 +1,6 @@
 package studio
 
+import "image2ai/internal/locale"
 import (
 	"encoding/base64"
 	"fmt"
@@ -31,11 +32,11 @@ func (a *App) library(c *ui.Context, narrow bool) {
 	}
 	available := min(float32(1440), max(float32(200), width-gutter*2))
 	favoriteFilter := func() {
-		favoriteText := "收藏"
+		favoriteText := locale.T("收藏")
 		if a.history.FavoriteCount > 0 {
 			favoriteText += fmt.Sprintf(" %d", a.history.FavoriteCount)
 		}
-		favorite := quietButton(c, "favorites-only", "").Label("只看收藏").Height(32).Padding(4, 12)
+		favorite := quietButton(c, "favorites-only", "").Label(locale.T("只看收藏")).Height(32).Padding(4, 12)
 		favorite.Children(func() {
 			ui.Row(c).Center().Gap(8).Children(func() { ui.Icon(c, icons["star"]).Size(16, 16); ui.Text(c, favoriteText) })
 		})
@@ -54,8 +55,8 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				title.FillWidth()
 			}
 			title.Children(func() {
-				ui.Text(c, "作品库").FontSize(textSize(c, 18)).FontWeight(600)
-				ui.Text(c.Key("history-count"), fmt.Sprintf("%d 张", a.history.Total)).Label(fmt.Sprintf("%d 张作品 · %d 张收藏", a.history.Total, a.history.FavoriteCount)).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+				ui.Text(c, locale.T("作品库")).FontSize(textSize(c, 18)).FontWeight(600)
+				ui.Text(c.Key("history-count"), fmt.Sprintf(locale.T("%d 张"), a.history.Total)).Label(fmt.Sprintf(locale.T("%d 张作品 · %d 张收藏"), a.history.Total, a.history.FavoriteCount)).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 				if narrow {
 					ui.Spacer(c)
 					favoriteFilter()
@@ -74,7 +75,7 @@ func (a *App) library(c *ui.Context, narrow bool) {
 					search.Grow(1)
 				}
 				search.Children(func() {
-					if ui.TextInput(c.Key("history-search"), &a.search).Label("搜索作品").Placeholder("搜索提示词或模型").FillWidth().Height(32).Padding(4, 12, 4, 36).Changed() {
+					if ui.TextInput(c.Key("history-search"), &a.search).Label(locale.T("搜索作品")).Placeholder(locale.T("搜索提示词或模型")).FillWidth().Height(32).Padding(4, 12, 4, 36).Changed() {
 						a.refreshHistory()
 					}
 					ui.Icon(c, icons["search"]).Size(16, 16).Absolute().Left(12).Top(8).TextColor(c.Theme().TextMuted)
@@ -82,11 +83,11 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				if !narrow {
 					favoriteFilter()
 				}
-				settings := quietButton(c, "open-settings", "").Label("打开设置").Tooltip("设置").Height(32).Padding(4, 8)
+				settings := quietButton(c, "open-settings", "").Label(locale.T("打开设置")).Tooltip(locale.T("设置")).Height(32).Padding(4, 8)
 				settings.Children(func() {
 					ui.Row(c).Center().Gap(8).Children(func() {
 						ui.Icon(c, icons["settings"]).Size(16, 16)
-						ui.Text(c, "设置")
+						ui.Text(c, locale.T("设置"))
 					})
 				})
 				if settings.Clicked() {
@@ -96,20 +97,20 @@ func (a *App) library(c *ui.Context, narrow bool) {
 		})
 		n := len(a.jobs) + len(a.history.Items)
 		if n == 0 {
-			message := "写下提示词，开始生成。作品与参考图会自动保存在本机。"
-			title := "还没有作品"
+			message := locale.T("写下提示词，开始生成。作品与参考图会自动保存在本机。")
+			title := locale.T("还没有作品")
 			if a.historyLoading {
-				title = "正在读取作品库"
-				message = "请稍候…"
+				title = locale.T("正在读取作品库")
+				message = locale.T("请稍候…")
 			} else if a.search != "" || a.favoritesOnly {
-				title = "没有匹配的作品"
-				message = "试试其他搜索词，或取消收藏筛选"
+				title = locale.T("没有匹配的作品")
+				message = locale.T("试试其他搜索词，或取消收藏筛选")
 			}
-			ui.Scroll(c.Key("library-empty")).Label("作品库空状态").FillWidth().Height(224).Shrink(1).MinHeight(0).Center().Gap(16).Border(1, c.Theme().Border).Radius(20).Children(func() {
+			ui.Scroll(c.Key("library-empty")).Label(locale.T("作品库空状态")).FillWidth().Height(224).Shrink(1).MinHeight(0).Center().Gap(16).Border(1, c.Theme().Border).Radius(20).Children(func() {
 				ui.Text(c, title).FontSize(textSize(c, 16)).FontWeight(500)
 				ui.Text(c.Key("history-empty"), message).MaxWidth(min(520, available-32)).TextAlign(ui.Center).TextColor(c.Theme().TextMuted)
 				if !a.historyLoading && a.search == "" && !a.favoritesOnly {
-					if ui.Button(c.Key("empty-settings"), "配置模型服务").Height(40).Clicked() {
+					if ui.Button(c.Key("empty-settings"), locale.T("配置模型服务")).Height(40).Clicked() {
 						a.openSettings()
 					}
 				}
@@ -163,7 +164,7 @@ func (a *App) library(c *ui.Context, narrow bool) {
 						})
 					}
 				})
-			}).FillWidth().Grow(1).MinHeight(min(float32(240), cellHeight)).Label("作品和生成任务")
+			}).FillWidth().Grow(1).MinHeight(min(float32(240), cellHeight)).Label(locale.T("作品和生成任务"))
 			a.pumpThumbnails()
 		}
 	})
@@ -183,14 +184,14 @@ func (a *App) jobCard(c *ui.Context, task *job) {
 		ui.Spacer(c)
 		ui.Text(c.Key("job-stage-"+task.Args.JobID), task.Progress.Stage).FontWeight(500)
 		if task.Progress.Status == "error" {
-			ui.TextArea(c.Key("job-error-"+task.Args.JobID), &task.Progress.Error).ReadOnly(true).Label("生成失败原因").Tooltip(task.Progress.Error).FillWidth().Height(64).Padding(0).Border(0, ui.Transparent).Background(ui.Transparent).TextColor(c.Theme().Danger)
+			ui.TextArea(c.Key("job-error-"+task.Args.JobID), &task.Progress.Error).ReadOnly(true).Label(locale.T("生成失败原因")).Tooltip(task.Progress.Error).FillWidth().Height(64).Padding(0).Border(0, ui.Transparent).Background(ui.Transparent).TextColor(c.Theme().Danger)
 			ui.Row(c).Wrap().Gap(6).Children(func() {
-				ui.Button(c.Key("redo-"+task.Args.JobID), "重做").Height(32).Padding(4, 10).Disabled(a.importing).OnClick(func() { a.redoJob(task) })
-				ui.Button(c.Key("dismiss-job-"+task.Args.JobID), "移除任务").Height(32).Padding(4, 10).OnClick(func() { a.removeJob(task) })
+				ui.Button(c.Key("redo-"+task.Args.JobID), locale.T("重做")).Height(32).Padding(4, 10).Disabled(a.importing).OnClick(func() { a.redoJob(task) })
+				ui.Button(c.Key("dismiss-job-"+task.Args.JobID), locale.T("移除任务")).Height(32).Padding(4, 10).OnClick(func() { a.removeJob(task) })
 			})
 		} else {
-			ui.Progress(c.Key("job-progress-"+task.Args.JobID), float64(task.Progress.Progress)/100).Label("生成进度")
-			ui.Text(c, "进度表示请求阶段\n完成后自动保存").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+			ui.Progress(c.Key("job-progress-"+task.Args.JobID), float64(task.Progress.Progress)/100).Label(locale.T("生成进度"))
+			ui.Text(c, locale.T("进度表示请求阶段\n完成后自动保存")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 		}
 	})
 }
@@ -226,38 +227,38 @@ func (a *App) artworkCard(c *ui.Context, record domain.ImageRecord) {
 		ui.Box(c.Key("artwork-well-" + record.ID)).FillWidth().Height(imageHeight).Center().Children(func() {
 			ui.Box(c.Key("artwork-image-frame-"+record.ID)).Size(imageWidth, imageHeight).Radius(6).Clip().Children(func() {
 				if thumb != nil {
-					if ui.Image(c.Key("artwork-image-"+record.ID), thumb).Fill().Fit(ui.Cover).Label("预览作品 " + record.Prompt).Focusable().Clicked() {
+					if ui.Image(c.Key("artwork-image-"+record.ID), thumb).Fill().Fit(ui.Cover).Label(locale.T("预览作品 ") + record.Prompt).Focusable().Clicked() {
 						a.openArtwork(record)
 					}
 				} else {
-					text := "正在读取图片…"
+					text := locale.T("正在读取图片…")
 					if a.thumbErrors[record.ID] != "" {
-						text = "图片无法读取"
+						text = locale.T("图片无法读取")
 					}
 					ui.Box(c).Fill().Center().Children(func() { ui.Text(c, text).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted) })
 				}
-				favorite, star := "收藏", "star"
+				favorite, star := locale.T("收藏"), "star"
 				if record.Favorite {
-					favorite, star = "取消收藏", "star-filled"
+					favorite, star = locale.T("取消收藏"), "star-filled"
 				}
 				iconButton(c, "favorite-"+record.ID, favorite+" "+record.ID, star).Absolute().Top(4).Right(4).Size(24, 24).Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).OnClick(func() { a.toggleFavorite(record) })
-				iconButton(c, "preview-"+record.ID, "查看作品 "+record.ID, "expand").Absolute().Bottom(4).Right(4).Size(24, 24).Background(ui.RGBA(20, 20, 20, 0.6)).TextColor(ui.Hex("#ffffff")).Radius(6).OnClick(func() { a.openArtwork(record) })
+				iconButton(c, "preview-"+record.ID, locale.T("查看作品 ")+record.ID, "expand").Absolute().Bottom(4).Right(4).Size(24, 24).Background(ui.RGBA(20, 20, 20, 0.6)).TextColor(ui.Hex("#ffffff")).Radius(6).OnClick(func() { a.openArtwork(record) })
 			})
 		})
 		ui.Text(c, record.Prompt).MaxLines(2).FontSize(textSize(c, 13))
 		ui.Row(c).FillWidth().Gap(2).Children(func() {
 			ui.Text(c, record.Model).SingleLine().Grow(1).FontSize(textSize(c, 11)).TextColor(c.Theme().TextMuted)
-			iconButton(c, "reuse-"+record.ID, "复用参数 "+record.ID, "images").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() { a.reuse(record) })
-			iconButton(c, "export-"+record.ID, "导出原图 "+record.ID, "download").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() {
+			iconButton(c, "reuse-"+record.ID, locale.T("复用参数 ")+record.ID, "images").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() { a.reuse(record) })
+			iconButton(c, "export-"+record.ID, locale.T("导出原图 ")+record.ID, "download").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() {
 				a.perform(func() (string, error) {
 					saved, err := a.desktop.ExportImage(record.ID)
 					if saved && err == nil {
-						return "图片已导出。", nil
+						return locale.T("图片已导出。"), nil
 					}
 					return "", err
 				})
 			})
-			iconButton(c, "delete-"+record.ID, "删除作品 "+record.ID, "trash").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() { a.deleteID = record.ID; a.deleteOpen = true })
+			iconButton(c, "delete-"+record.ID, locale.T("删除作品 ")+record.ID, "trash").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() { a.deleteID = record.ID; a.deleteOpen = true })
 		})
 	})
 }
@@ -316,7 +317,7 @@ func (a *App) deleteArtwork(id string) {
 			if a.previewRecord != nil && a.previewRecord.ID == id {
 				a.previewOpen = false
 			}
-			a.showNotice("作品已删除。")
+			a.showNotice(locale.T("作品已删除。"))
 			a.refreshHistory()
 		}
 	})
@@ -404,7 +405,7 @@ func (a *App) loadPreview(request uint64, read func() ([]byte, error), then func
 }
 
 func (a *App) openArtwork(record domain.ImageRecord) {
-	request := a.beginPreview("作品详情", &record, a.thumbs[record.ID], record.Width, record.Height)
+	request := a.beginPreview(locale.T("作品详情"), &record, a.thumbs[record.ID], record.Width, record.Height)
 	a.previewMedia.result = a.thumbs[record.ID]
 	a.previewMedia.references = make([]*ui.Bitmap, min(4, max(0, record.ReferenceCount)))
 	a.previewMedia.problems = make([]string, 1+len(a.previewMedia.references))
@@ -462,14 +463,14 @@ func (a *App) preview(c *ui.Context, narrow bool) {
 				ui.Row(c).Grow(1).MinWidth(0).Wrap().Gap(12).AlignItems(ui.Center).Children(func() {
 					title := a.previewTitle
 					if a.markup != nil {
-						title = "标注编辑"
+						title = locale.T("标注编辑")
 					}
 					ui.Text(c, title).FontSize(textSize(c, 16)).FontWeight(600)
 					if r := a.previewRecord; r != nil {
 						ui.Text(c, r.ProviderName+" / "+r.Model).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 					}
 				})
-				if iconButton(c, "close-preview", "关闭", "close").Size(28, 28).Shrink(0).Clicked() {
+				if iconButton(c, "close-preview", locale.T("关闭"), "close").Size(28, 28).Shrink(0).Clicked() {
 					a.previewOpen = false
 				}
 			})
@@ -483,7 +484,7 @@ func (a *App) preview(c *ui.Context, narrow bool) {
 					ui.Text(c.Key("reference-preview-error"), a.problem).TextColor(c.Theme().Danger)
 				}
 				if a.previewLoading {
-					ui.Text(c, "正在读取原图…").TextColor(c.Theme().TextMuted)
+					ui.Text(c, locale.T("正在读取原图…")).TextColor(c.Theme().TextMuted)
 				}
 				if a.previewBitmap != nil {
 					a.imageViewer(c)
@@ -519,14 +520,14 @@ func (a *App) previewDetails(c *ui.Context, record domain.ImageRecord) {
 		ui.Text(c.Key("preview-notice"), a.notice).TextColor(c.Theme().TextMuted)
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "提示词").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		ui.Text(c, locale.T("提示词")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 		ui.Spacer(c)
-		quietButton(c, "copy-prompt", "复制提示词").Height(32).Padding(4, 8).OnClick(func() {
-			a.perform(func() (string, error) { return "提示词已复制。", a.desktop.CopyText(record.Prompt) })
+		quietButton(c, "copy-prompt", locale.T("复制提示词")).Height(32).Padding(4, 8).OnClick(func() {
+			a.perform(func() (string, error) { return locale.T("提示词已复制。"), a.desktop.CopyText(record.Prompt) })
 		})
 	})
 	prompt := record.Prompt
-	ui.TextArea(c.Key("preview-prompt"), &prompt).ReadOnly(true).Label("作品提示词").Height(110).FillWidth().Padding(0).Border(0, ui.Transparent).Background(ui.Transparent)
+	ui.TextArea(c.Key("preview-prompt"), &prompt).ReadOnly(true).Label(locale.T("作品提示词")).Height(110).FillWidth().Padding(0).Border(0, ui.Transparent).Background(ui.Transparent)
 	ui.Row(c).Wrap().Gap(8).Children(func() {
 		ui.Text(c, artworkSizeLabel(record)).FontSize(textSize(c, 11)).Padding(2, 8).Background(c.Theme().SurfacePressed).Radius(8)
 		ui.Text(c, strings.ToUpper(strings.TrimPrefix(record.MIMEType, "image/"))).FontSize(textSize(c, 11)).Padding(2, 8).Background(c.Theme().SurfacePressed).Radius(8)
@@ -546,31 +547,31 @@ func (a *App) previewActions(c *ui.Context, record domain.ImageRecord) {
 	ui.Column(c.Key("preview-actions")).Shrink(0).FillWidth().Gap(12).Children(func() {
 		ui.Divider(c)
 		ui.Grid(c).Columns(2).Gap(8).FillWidth().Children(func() {
-			copyButton := ui.Button(c.Key("copy-image"), "").Label("复制图片").Tooltip("复制图片").Height(40).FillWidth().Padding(0)
-			copyButton.Children(func() { buttonContent("copy", "复制图片") })
+			copyButton := ui.Button(c.Key("copy-image"), "").Label(locale.T("复制图片")).Tooltip(locale.T("复制图片")).Height(40).FillWidth().Padding(0)
+			copyButton.Children(func() { buttonContent("copy", locale.T("复制图片")) })
 			copyButton.OnClick(func() {
-				a.perform(func() (string, error) { return "图片已复制。", a.desktop.CopyImage(record.ID) })
+				a.perform(func() (string, error) { return locale.T("图片已复制。"), a.desktop.CopyImage(record.ID) })
 			})
-			exportButton := ui.Button(c.Key("export-image"), "").Label("导出原图").Tooltip("导出原图").Height(40).FillWidth().Padding(0)
-			exportButton.Children(func() { buttonContent("download", "导出原图") })
+			exportButton := ui.Button(c.Key("export-image"), "").Label(locale.T("导出原图")).Tooltip(locale.T("导出原图")).Height(40).FillWidth().Padding(0)
+			exportButton.Children(func() { buttonContent("download", locale.T("导出原图")) })
 			exportButton.OnClick(func() {
 				a.perform(func() (string, error) {
 					saved, err := a.desktop.ExportImage(record.ID)
 					if saved && err == nil {
-						return "图片已导出。", nil
+						return locale.T("图片已导出。"), nil
 					}
 					return "", err
 				})
 			})
-			favorite, star := "收藏", "star"
+			favorite, star := locale.T("收藏"), "star"
 			if record.Favorite {
-				favorite, star = "取消收藏", "star-filled"
+				favorite, star = locale.T("取消收藏"), "star-filled"
 			}
 			favoriteButton := ui.Button(c.Key("preview-favorite"), "").Label(favorite).Tooltip(favorite).Height(40).FillWidth().Padding(0)
 			favoriteButton.Children(func() { buttonContent(star, favorite) })
 			favoriteButton.OnClick(func() { a.toggleFavorite(record) })
-			reuseButton := ui.PrimaryButton(c.Key("reuse-preview"), "").Label("复用参数").Tooltip("做同款").Height(40).FillWidth().Padding(0)
-			reuseButton.Children(func() { buttonContent("images", "做同款") })
+			reuseButton := ui.PrimaryButton(c.Key("reuse-preview"), "").Label(locale.T("复用参数")).Tooltip(locale.T("做同款")).Height(40).FillWidth().Padding(0)
+			reuseButton.Children(func() { buttonContent("images", locale.T("做同款")) })
 			reuseButton.OnClick(func() { a.reuse(record); a.previewOpen = false })
 		})
 	})
@@ -612,7 +613,7 @@ func (a *App) reuse(record domain.ImageRecord) {
 			if err != nil {
 				return nil, err
 			}
-			ref := domain.Reference{ID: newID(), Name: fmt.Sprintf("参考图 %d", i+1), DataURL: "data:" + http.DetectContentType(data) + ";base64," + base64.StdEncoding.EncodeToString(data)}
+			ref := domain.Reference{ID: newID(), Name: fmt.Sprintf(locale.T("参考图 %d"), i+1), DataURL: "data:" + http.DetectContentType(data) + ";base64," + base64.StdEncoding.EncodeToString(data)}
 			refs = append(refs, ref)
 		}
 		return refs, nil

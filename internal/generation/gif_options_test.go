@@ -53,7 +53,7 @@ func TestInvalidGIFOptionsNeverReachPaidProvider(t *testing.T) {
 		frames, duration int
 		size             string
 		reference        bool
-	}{{1, 200, "1024x1024", false}, {65, 200, "512x512", false}, {9, 19, "1024x1024", false}, {9, 2001, "1024x1024", false}, {64, 200, "1024x1024", false}, {9, 200, "1776x2368", false}, {9, 200, "1024x1024", true}} {
+	}{{1, 200, "1024x1024", false}, {65, 200, "512x512", false}, {9, 19, "1024x1024", false}, {9, 2001, "1024x1024", false}, {64, 200, "1024x1024", false}, {9, 200, "1776x2368", false}, {64, 200, "1024x1024", true}, {9, 19, "1024x1024", true}} {
 		args := baseArgs()
 		args.OutputFormat = "gif"
 		args.FrameCount = tc.frames

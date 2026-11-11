@@ -1,5 +1,6 @@
 package studio
 
+import "image2ai/internal/locale"
 import (
 	"fmt"
 	"math"
@@ -53,7 +54,7 @@ func (a *App) imageViewer(c *ui.Context) {
 		iw, ih = a.previewWidth, a.previewHeight
 	}
 	view := &a.viewer
-	box := ui.Box(c.Key("preview-image")).FillWidth().Grow(1).MinHeight(100).Clip().Focusable().Label("图片缩放查看器")
+	box := ui.Box(c.Key("preview-image")).FillWidth().Grow(1).MinHeight(100).Clip().Focusable().Label(locale.T("图片缩放查看器"))
 	// Use the laid-out image well so zoom anchors and pan limits follow the
 	// available space, including wrapped controls and system text scaling.
 	bounds := box.Bounds()
@@ -142,35 +143,35 @@ func (a *App) imageViewer(c *ui.Context) {
 	})
 	ui.Row(c.Key("viewer-controls")).FillWidth().Shrink(0).Wrap().Gap(4).AlignItems(ui.Center).Children(func() {
 		if animation := a.previewAnimation; animation != nil {
-			label := "暂停"
+			label := locale.T("暂停")
 			if animation.paused {
-				label = "播放"
+				label = locale.T("播放")
 			}
 			if _, next := animation.frame(c.Now()); next == 0 && !animation.paused {
 				animation.elapsed = animation.position(c.Now())
 				animation.paused = true
-				label = "重播"
+				label = locale.T("重播")
 			}
-			if quietButton(c, "preview-play", label).Label("播放或暂停 GIF").Height(32).Padding(4, 8).Clicked() {
+			if quietButton(c, "preview-play", label).Label(locale.T("播放或暂停 GIF")).Height(32).Padding(4, 8).Clicked() {
 				animation.toggle(c.Now())
 			}
 		}
-		if quietButton(c, "zoom-out", "−").Label("缩小").Tooltip("缩小").Size(32, 32).Padding(0).Clicked() {
+		if quietButton(c, "zoom-out", "−").Label(locale.T("缩小")).Tooltip(locale.T("缩小")).Size(32, 32).Padding(0).Clicked() {
 			view.zoom(view.scale/1.25, 0, 0, width, height, iw, ih)
 		}
-		if quietButton(c, "zoom-in", "+").Label("放大").Tooltip("放大").Size(32, 32).Padding(0).Clicked() {
+		if quietButton(c, "zoom-in", "+").Label(locale.T("放大")).Tooltip(locale.T("放大")).Size(32, 32).Padding(0).Clicked() {
 			view.zoom(view.scale*1.25, 0, 0, width, height, iw, ih)
 		}
-		if quietButton(c, "zoom-fit", "适应窗口").Height(32).Padding(4, 8).Clicked() {
+		if quietButton(c, "zoom-fit", locale.T("适应窗口")).Height(32).Padding(4, 8).Clicked() {
 			view.reset()
 		}
-		if quietButton(c, "zoom-actual", "原始大小").Height(32).Padding(4, 8).Clicked() {
+		if quietButton(c, "zoom-actual", locale.T("原始大小")).Height(32).Padding(4, 8).Clicked() {
 			view.zoom(1, 0, 0, width, height, iw, ih)
 		}
 		ui.Text(c, fmt.Sprintf("%.0f%%", view.scale*100)).FontSize(12).TextColor(c.Theme().TextMuted)
 		if a.previewEditable {
 			ui.Spacer(c)
-			if quietButton(c, "open-markup", "标注编辑").Label("标注编辑当前图片").Height(32).Padding(4, 8).Disabled(a.previewLoading || len(a.previewData) == 0).Clicked() {
+			if quietButton(c, "open-markup", locale.T("标注编辑")).Label(locale.T("标注编辑当前图片")).Height(32).Padding(4, 8).Disabled(a.previewLoading || len(a.previewData) == 0).Clicked() {
 				a.beginMarkup()
 			}
 		}

@@ -1,8 +1,10 @@
 package studio
 
 import (
+	"errors"
 	"fmt"
 	"image"
+	"image2ai/internal/locale"
 	"math"
 	"strings"
 	"unicode/utf16"
@@ -100,7 +102,7 @@ func (a *App) markupContent(c *ui.Context, wide bool, contentHeight float32) {
 	imagePanel := func() {
 		a.markupTools(c, e)
 		if e.picture == nil {
-			label := "正在准备原图…"
+			label := locale.T("正在准备原图…")
 			if e.problem != "" {
 				label = e.problem
 			}
@@ -131,8 +133,8 @@ func (a *App) markupContent(c *ui.Context, wide bool, contentHeight float32) {
 
 func (a *App) markupTools(c *ui.Context, e *markupEditor) {
 	ui.Row(c.Key("markup-tools")).FillWidth().Shrink(0).Wrap().Gap(4).Children(func() {
-		for _, tool := range []struct{ id, label string }{{"pen", "画笔"}, {"rectangle", "矩形"}, {"ellipse", "圆圈"}, {"move", "移动"}} {
-			b := quietButton(c, "markup-tool-"+tool.id, tool.label).Label("标注工具："+tool.label).Height(32).Padding(4, 8).Disabled(e.busy)
+		for _, tool := range []struct{ id, label string }{{"pen", locale.T("画笔")}, {"rectangle", locale.T("矩形")}, {"ellipse", locale.T("圆圈")}, {"move", locale.T("移动")}} {
+			b := quietButton(c, "markup-tool-"+tool.id, tool.label).Label(locale.T("标注工具：")+tool.label).Height(32).Padding(4, 8).Disabled(e.busy)
 			if e.tool == tool.id {
 				b.Background(c.Theme().SurfacePressed).Border(1, c.Theme().Border)
 			}
@@ -141,16 +143,16 @@ func (a *App) markupTools(c *ui.Context, e *markupEditor) {
 			}
 		}
 		ui.Select(c.Key("markup-weight"), &e.weight, []string{"细", "中", "粗"}).Label("标注线宽").Width(64).MinWidth(0).Height(32).Padding(4, 8).Disabled(e.busy)
-		if quietButton(c, "markup-undo", "撤销").Label("撤销标注").Height(32).Padding(4, 8).Disabled(e.busy || len(e.strokes) == 0).Clicked() {
+		if quietButton(c, "markup-undo", locale.T("撤销")).Label(locale.T("撤销标注")).Height(32).Padding(4, 8).Disabled(e.busy || len(e.strokes) == 0).Clicked() {
 			e.undo()
 		}
-		if quietButton(c, "markup-redo", "重做").Label("重做标注").Height(32).Padding(4, 8).Disabled(e.busy || len(e.redo) == 0).Clicked() {
+		if quietButton(c, "markup-redo", locale.T("重做")).Label(locale.T("重做标注")).Height(32).Padding(4, 8).Disabled(e.busy || len(e.redo) == 0).Clicked() {
 			s := e.redo[len(e.redo)-1]
 			e.redo = e.redo[:len(e.redo)-1]
 			e.strokes = append(e.strokes, s)
 			e.pointCount += len(s.Points)
 		}
-		if quietButton(c, "markup-clear", "清空").Label("清空标注").Height(32).Padding(4, 8).Disabled(e.busy || (len(e.strokes) == 0 && e.baseMarkup == "")).Clicked() {
+		if quietButton(c, "markup-clear", locale.T("清空")).Label(locale.T("清空标注")).Height(32).Padding(4, 8).Disabled(e.busy || (len(e.strokes) == 0 && e.baseMarkup == "")).Clicked() {
 			e.strokes, e.redo, e.pointCount = nil, nil, 0
 			e.baseMarkup, e.baseBitmap = "", nil
 			e.problem = ""
@@ -159,12 +161,12 @@ func (a *App) markupTools(c *ui.Context, e *markupEditor) {
 }
 
 func (a *App) markupInstructions(c *ui.Context, e *markupEditor) {
-	ui.Text(c, "圈出要改的位置").FontSize(textSize(c, 16)).FontWeight(600)
-	ui.Text(c, "用红色标注位置，再写下修改要求。").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	ui.Text(c, locale.T("圈出要改的位置")).FontSize(textSize(c, 16)).FontWeight(600)
+	ui.Text(c, locale.T("用红色标注位置，再写下修改要求。")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	if e.baseMarkup != "" {
-		ui.Text(c, "已保留原标注，可追加或清空。").FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		ui.Text(c, locale.T("已保留原标注，可追加或清空。")).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	}
-	ui.TextArea(c.Key("markup-prompt"), &e.prompt).Label("标注修改要求").Placeholder("例如：把红圈内的房子改成木屋，保留其余画面。").Lines(4, 8).MinHeight(128).FillWidth().Padding(12).Disabled(e.busy)
+	ui.TextArea(c.Key("markup-prompt"), &e.prompt).Label(locale.T("标注修改要求")).Placeholder(locale.T("例如：把红圈内的房子改成木屋，保留其余画面。")).Lines(4, 8).MinHeight(128).FillWidth().Padding(12).Disabled(e.busy)
 	labels, _, choices := a.modelChoices()
 	current := ""
 	for label, choice := range choices {
@@ -172,46 +174,46 @@ func (a *App) markupInstructions(c *ui.Context, e *markupEditor) {
 			current = label
 		}
 	}
-	if ui.Select(c.Key("markup-model"), &current, labels).Label("标注编辑模型").FillWidth().Height(36).Disabled(e.busy).Changed() {
+	if ui.Select(c.Key("markup-model"), &current, labels).Label(locale.T("标注编辑模型")).FillWidth().Height(36).Disabled(e.busy).Changed() {
 		choice := choices[current]
 		e.providerID, e.model = choice.providerID, choice.model
 		if e.resolution != "auto" {
 			e.resolution = providerDefaultResolution(a.markupProvider(e))
 		}
 	}
-	ui.Text(c, "使用 GPT Image 2.6\n请确认渠道支持标注编辑。").FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	ui.Text(c, locale.T("使用 GPT Image 2.6\n请确认渠道支持标注编辑。")).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	a.markupSizeControls(c, e)
 	format := strings.ToUpper(e.outputFormat)
 	if format == "" {
-		format = "默认格式"
+		format = locale.T("默认格式")
 	} else if format == "WEBP" {
 		format = "WebP"
 	}
-	if ui.Select(c.Key("markup-output-format"), &format, []string{"默认格式", "PNG", "JPEG", "WebP"}).Label("标注编辑输出格式").FillWidth().Height(36).Disabled(e.busy).Changed() {
+	if ui.Select(c.Key("markup-output-format"), &format, []string{locale.T("默认格式"), "PNG", "JPEG", "WebP"}).Label(locale.T("标注编辑输出格式")).FillWidth().Height(36).Disabled(e.busy).Changed() {
 		e.outputFormat = strings.ToLower(format)
-		if format == "默认格式" {
+		if format == locale.T("默认格式") {
 			e.outputFormat = ""
 		}
 	}
 	if e.picture != nil {
-		status := fmt.Sprintf("%d 处标注", len(e.strokes))
+		status := fmt.Sprintf(locale.T("%d 处标注"), len(e.strokes))
 		if e.baseMarkup != "" {
-			status = "已保留原标注"
+			status = locale.T("已保留原标注")
 		}
-		ui.Text(c, fmt.Sprintf("原图 %d × %d px · %s", e.size.X, e.size.Y, status)).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		ui.Text(c, fmt.Sprintf(locale.T("原图 %d × %d px · %s"), e.size.X, e.size.Y, status)).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	}
 	if size, err := e.requestSize(); err == nil {
-		label := "输出尺寸：自动"
+		label := locale.T("输出尺寸：自动")
 		if size != "auto" {
-			label = "输出 " + strings.ReplaceAll(size, "x", " × ") + " px"
+			label = locale.T("输出 ") + strings.ReplaceAll(size, "x", " × ") + " px"
 		}
 		ui.Text(c.Key("markup-output-size"), label).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	} else {
 		ui.Text(c.Key("markup-size-error"), err.Error()).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().Danger)
 	}
-	ui.Text(c, "生成结果另存作品库。").FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+	ui.Text(c, locale.T("生成结果另存作品库。")).FillWidth().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	if len(utf16.Encode([]rune(e.prompt))) > 20000 {
-		ui.Text(c, "修改要求不能超过 20000 字。").TextColor(c.Theme().Danger)
+		ui.Text(c, locale.T("修改要求不能超过 20000 字。")).TextColor(c.Theme().Danger)
 	}
 	if e.problem != "" {
 		ui.Text(c.Key("markup-error"), e.problem).TextColor(c.Theme().Danger)
@@ -220,7 +222,7 @@ func (a *App) markupInstructions(c *ui.Context, e *markupEditor) {
 
 func (a *App) markupProvider(e *markupEditor) *domain.Provider {
 	for i := range a.config.Providers {
-		if a.config.Providers[i].ID == e.providerID {
+		if a.config.Providers[i].ID == e.providerID && !a.config.Providers[i].Disabled {
 			return &a.config.Providers[i]
 		}
 	}
@@ -231,24 +233,24 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 	p := a.markupProvider(e)
 	ui.Row(c.Key("markup-size-controls")).FillWidth().Gap(8).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
-			ui.Text(c, "画面比例").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+			ui.Text(c, locale.T("画面比例")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 			ratio := e.ratio
 			switch ratio {
 			case "auto":
-				ratio = "自动"
+				ratio = locale.T("自动")
 			case "source":
-				ratio = "原图比例"
+				ratio = locale.T("原图比例")
 			}
-			options := append([]string{"自动", "原图比例"}, ratios...)
+			options := append([]string{locale.T("自动"), locale.T("原图比例")}, ratios...)
 			if e.exactSize != "" {
-				ratio, options = "沿用", append([]string{"沿用"}, options...)
+				ratio, options = locale.T("沿用"), append([]string{locale.T("沿用")}, options...)
 			}
-			if ui.Select(c.Key("markup-ratio"), &ratio, options).Label("标注编辑画面比例").FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() && ratio != "沿用" {
+			if ui.Select(c.Key("markup-ratio"), &ratio, options).Label(locale.T("标注编辑画面比例")).FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() && ratio != locale.T("沿用") {
 				e.exactSize = ""
 				switch ratio {
-				case "自动":
+				case locale.T("自动"):
 					e.ratio, e.resolution = "auto", "auto"
-				case "原图比例":
+				case locale.T("原图比例"):
 					e.ratio = "source"
 				default:
 					e.ratio = ratio
@@ -259,23 +261,23 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 			}
 		})
 		ui.Column(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
-			ui.Text(c, "分辨率").FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+			ui.Text(c, locale.T("分辨率")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 			resolution := strings.ToUpper(e.resolution)
 			if e.resolution == "auto" {
-				resolution = "自动"
+				resolution = locale.T("自动")
 			}
-			options := []string{"自动"}
+			options := []string{locale.T("自动")}
 			if p != nil {
 				for _, value := range p.Resolutions {
 					options = append(options, strings.ToUpper(value))
 				}
 			}
 			if e.exactSize != "" {
-				resolution, options = "沿用", append([]string{"沿用"}, options...)
+				resolution, options = locale.T("沿用"), append([]string{locale.T("沿用")}, options...)
 			}
-			if ui.Select(c.Key("markup-resolution"), &resolution, options).Label("标注编辑分辨率").FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() && resolution != "沿用" {
+			if ui.Select(c.Key("markup-resolution"), &resolution, options).Label(locale.T("标注编辑分辨率")).FillWidth().MinWidth(0).Height(36).Disabled(e.busy).Changed() && resolution != locale.T("沿用") {
 				e.exactSize = ""
-				if resolution == "自动" {
+				if resolution == locale.T("自动") {
 					e.ratio, e.resolution = "auto", "auto"
 				} else {
 					e.resolution = strings.ToLower(resolution)
@@ -293,7 +295,7 @@ func (e *markupEditor) requestSize() (string, error) {
 	if e.exactSize != "" {
 		var w, h int
 		if _, err := fmt.Sscanf(e.exactSize, "%dx%d", &w, &h); err != nil || fmt.Sprintf("%dx%d", w, h) != e.exactSize || w < 256 || h < 256 || w > 8192 || h > 8192 || w%16 != 0 || h%16 != 0 {
-			return "", fmt.Errorf("原输出尺寸无效，请重新选择画面比例或分辨率。")
+			return "", errors.New(locale.T("原输出尺寸无效，请重新选择画面比例或分辨率。"))
 		}
 		return e.exactSize, nil
 	}
@@ -301,38 +303,38 @@ func (e *markupEditor) requestSize() (string, error) {
 		return "auto", nil
 	}
 	if e.resolution != "2k" && e.resolution != "4k" {
-		return "", fmt.Errorf("请选择有效的输出分辨率。")
+		return "", errors.New(locale.T("请选择有效的输出分辨率。"))
 	}
 	ratio := e.ratio
 	if ratio == "source" {
 		if e.size.X <= 0 || e.size.Y <= 0 {
-			return "", fmt.Errorf("请等原图读取完成后选择尺寸。")
+			return "", errors.New(locale.T("请等原图读取完成后选择尺寸。"))
 		}
 		ratio = fmt.Sprintf("%d:%d", e.size.X, e.size.Y)
 	} else if !contains(ratios, ratio) {
-		return "", fmt.Errorf("请选择有效的画面比例。")
+		return "", errors.New(locale.T("请选择有效的画面比例。"))
 	}
 	size := generation.ComputeSize(ratio, e.resolution)
 	var width, height int
 	if _, err := fmt.Sscanf(size, "%dx%d", &width, &height); err != nil || width > 8192 || height > 8192 {
-		return "", fmt.Errorf("此比例的输出边长超过 8192 像素，请降低分辨率或选择其他比例。")
+		return "", errors.New(locale.T("此比例的输出边长超过 8192 像素，请降低分辨率或选择其他比例。"))
 	}
 	return size, nil
 }
 
 func (a *App) markupActions(c *ui.Context, e *markupEditor) {
 	ui.Row(c.Key("markup-actions")).FillWidth().Shrink(0).Gap(8).Children(func() {
-		if ui.Button(c.Key("markup-cancel"), "取消标注").Height(40).Clicked() {
+		if ui.Button(c.Key("markup-cancel"), locale.T("取消标注")).Height(40).Clicked() {
 			a.markup = nil
 			if e.direct {
 				a.previewOpen = false
 			}
 		}
-		label := "开始生成"
+		label := locale.T("开始生成")
 		if e.busy {
-			label = "准备中…"
+			label = locale.T("准备中…")
 		}
-		if ui.PrimaryButton(c.Key("markup-submit"), label).Label("生成标注编辑").Height(40).Grow(1).Disabled(!e.canSubmit()).Clicked() {
+		if ui.PrimaryButton(c.Key("markup-submit"), label).Label(locale.T("生成标注编辑")).Height(40).Grow(1).Disabled(!e.canSubmit()).Clicked() {
 			a.submitMarkup(e)
 		}
 	})
@@ -392,7 +394,7 @@ func (e *markupEditor) undo() {
 func (a *App) markupCanvas(c *ui.Context, e *markupEditor) {
 	view := &e.view
 	iw, ih := float32(e.size.X), float32(e.size.Y)
-	box := ui.Box(c.Key("markup-canvas")).FillWidth().Grow(1).MinHeight(100).Clip().Focusable().Label("图片标注画布")
+	box := ui.Box(c.Key("markup-canvas")).FillWidth().Grow(1).MinHeight(100).Clip().Focusable().Label(locale.T("图片标注画布"))
 	bounds := box.Bounds()
 	w, h := max(float32(1), bounds.W), max(float32(1), bounds.H)
 	ww, wh := c.Size()
@@ -435,11 +437,11 @@ func (a *App) markupCanvas(c *ui.Context, e *markupEditor) {
 			key, label string
 			factor     float32
 		}{{"out", "−", 0.8}, {"in", "+", 1.25}} {
-			if quietButton(c, "markup-zoom-"+item.key, item.label).Label("标注画布"+map[string]string{"in": "放大", "out": "缩小"}[item.key]).Size(32, 32).Padding(0).Disabled(e.busy).Clicked() {
+			if quietButton(c, "markup-zoom-"+item.key, item.label).Label(locale.T("标注画布")+map[string]string{"in": locale.T("放大"), "out": locale.T("缩小")}[item.key]).Size(32, 32).Padding(0).Disabled(e.busy).Clicked() {
 				view.zoom(view.scale*item.factor, 0, 0, w, h, iw, ih)
 			}
 		}
-		if quietButton(c, "markup-fit", "适应窗口").Label("标注画布适应窗口").Height(32).Padding(4, 8).Disabled(e.busy).Clicked() {
+		if quietButton(c, "markup-fit", locale.T("适应窗口")).Label(locale.T("标注画布适应窗口")).Height(32).Padding(4, 8).Disabled(e.busy).Clicked() {
 			view.reset()
 		}
 		ui.Text(c, fmt.Sprintf("%.0f%%", view.scale*100)).FontSize(12).TextColor(c.Theme().TextMuted)
@@ -474,7 +476,7 @@ func (e *markupEditor) input(ev ui.InputEvent, w, h float32) bool {
 			return true
 		}
 		if len(e.strokes) >= generation.MaxMarkupStrokes || e.pointCount >= generation.MaxMarkupPoints-2 {
-			e.problem = "标注已达上限，请撤销或清空部分标注。"
+			e.problem = locale.T("标注已达上限，请撤销或清空部分标注。")
 			return true
 		}
 		factor := map[string]float32{"细": 0.003, "中": 0.007, "粗": 0.014}[e.weight]
@@ -506,7 +508,7 @@ func (e *markupEditor) input(ev ui.InputEvent, w, h float32) bool {
 				e.current.Points = append(points, point)
 			}
 		} else {
-			e.problem = "标注已达上限，请撤销部分标注后继续。"
+			e.problem = locale.T("标注已达上限，请撤销部分标注后继续。")
 		}
 		if ev.Kind == ui.InputPointerUp {
 			e.strokes = append(e.strokes, e.current)

@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"image2ai/internal/locale"
 	"io"
 	"os"
 	"runtime"
@@ -68,7 +69,7 @@ func outlineSVGText(data []byte) ([]byte, error) {
 	encoder := xml.NewEncoder(&out)
 	states := []svgTextState{{size: 16}}
 	glyphs := 0
-	fail := errors.New("SVG 文字无法绘制或过于复杂。")
+	fail := errors.New(locale.T("SVG 文字无法绘制或过于复杂。"))
 	for {
 		token, err := decoder.Token()
 		if err == io.EOF {

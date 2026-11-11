@@ -49,19 +49,23 @@ func TestChosenImageDirectoryHoldsNewWorksAndKeepsEarlierOnes(t *testing.T) {
 		t.Fatal("a missing folder must be rejected")
 	}
 	chosen := t.TempDir()
+	canonicalChosen, err := filepath.EvalSymlinks(chosen)
+	if err != nil {
+		t.Fatal(err)
+	}
 	config, err := backend.SaveImageDirectory(chosen)
-	if err != nil || config.ImageDirectory != chosen {
+	if err != nil || config.ImageDirectory != canonicalChosen {
 		t.Fatalf("choosing a folder failed: %v %q", err, config.ImageDirectory)
 	}
 	second, err := backend.Generate(context.Background(), args, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Dir(second.ImagePath) != filepath.Join(chosen, "images") {
+	if filepath.Dir(second.ImagePath) != filepath.Join(canonicalChosen, "images") {
 		t.Fatalf("new work must be saved in the chosen folder: %s", second.ImagePath)
 	}
 	other := t.TempDir()
-	if config, err = backend.SaveImageDirectory(other); err != nil || len(config.PreviousImageDirectories) != 1 || config.PreviousImageDirectories[0] != chosen {
+	if config, err = backend.SaveImageDirectory(other); err != nil || len(config.PreviousImageDirectories) != 1 || config.PreviousImageDirectories[0] != canonicalChosen {
 		t.Fatalf("the previous folder must be remembered: %v %+v", err, config)
 	}
 	for _, record := range []domain.ImageRecord{first, second} {

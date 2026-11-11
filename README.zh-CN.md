@@ -6,7 +6,9 @@ Picloom 是用 Go 和 MyGo 构建的原生 AI 图像创作桌面应用，支持 
 
 [下载最新版本](https://github.com/JsoonLi/Picloom/releases/latest) · [查看所有版本](https://github.com/JsoonLi/Picloom/releases) · [反馈问题](https://github.com/JsoonLi/Picloom/issues)
 
-![Picloom 首页：作品库与创作区](assets/screenshots/home.png)
+![Picloom 示例首页：六张风景插画与示例提示词](assets/screenshots/home.png)
+
+*界面演示，使用本地示例插画。*
 
 ## 下载与安装
 

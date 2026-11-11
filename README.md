@@ -6,9 +6,9 @@ Picloom is a native AI image creation app for Windows and macOS, built with Go a
 
 [Download the latest release](https://github.com/JsoonLi/Picloom/releases/latest) · [All releases](https://github.com/JsoonLi/Picloom/releases) · [Report an issue](https://github.com/JsoonLi/Picloom/issues)
 
-![Picloom demo with six sample illustrations and a prompt (Chinese interface)](assets/screenshots/home.png)
+![Picloom English interface with six sample illustrations and a prompt](assets/screenshots/home.en.png)
 
-*UI demo using local sample illustrations.*
+*English UI demo using local sample illustrations.*
 
 ## Download and install
 

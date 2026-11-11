@@ -47,6 +47,22 @@ type Config struct {
 	// works saved there still open and can be deleted.
 	ImageDirectory           string   `json:"imageDirectory,omitempty"`
 	PreviousImageDirectories []string `json:"previousImageDirectories,omitempty"`
+	// Batch keeps the batch panel's choices between launches.
+	Batch BatchPreferences `json:"batch,omitzero"`
+}
+
+// BatchPreferences are the batch panel's remembered choices. Zero values
+// mean the defaults: two requests at a time, sizes following each source.
+type BatchPreferences struct {
+	// Concurrency is how many requests run at once, 1 to 16.
+	Concurrency int `json:"concurrency,omitempty"`
+	// SizeMode is "source" to follow each image's aspect, or "fixed" to
+	// use Ratio for every image.
+	SizeMode string `json:"sizeMode,omitempty"`
+	Ratio    string `json:"ratio,omitempty"`
+	// OutputDirectory receives a copy of every result; empty keeps
+	// results in the library only.
+	OutputDirectory string `json:"outputDirectory,omitempty"`
 }
 type ImageRecord struct {
 	// Requested GIF settings. Actual frame count and timing come from the file.
@@ -133,6 +149,10 @@ type Backend interface {
 	SaveLanguage(string) (Config, error)
 	SaveImageDirectory(string) (Config, error)
 	SavePreferences(GenerationPreferences) (Config, error)
+	SaveBatchPreferences(BatchPreferences) (Config, error)
+	// PlanGeneration validates args as Generate does and returns the
+	// request it would send, with the API key masked.
+	PlanGeneration(GenerateArgs) (RequestPlan, error)
 	DiscoverModels(context.Context, Provider) ([]string, error)
 	DiscoverPricing(context.Context, string) ([]ModelPricing, error)
 	Generate(context.Context, GenerateArgs, func(Progress)) (ImageRecord, error)
@@ -153,6 +173,22 @@ type UpdateStatus struct {
 	AutomaticDownloads bool
 	AvailableVersion   string
 	LastCheck          time.Time
+	Ready              bool
+}
+
+// UpdateDraft restores the composer after an unattended update restart.
+type UpdateDraft struct {
+	Prompt       string
+	References   []Reference
+	Preferences  GenerationPreferences
+	Size, Markup string
+	FailedJobs   []UpdateFailedJob
+}
+
+type UpdateFailedJob struct {
+	Args         GenerateArgs
+	Progress     Progress
+	ProviderName string
 }
 
 // Desktop contains OS operations only; UI never receives arbitrary disk access.
@@ -173,6 +209,19 @@ type Desktop interface {
 	UpdateStatus() UpdateStatus
 	SetUpdatePreferences(checks, downloads bool) (UpdateStatus, error)
 	CheckForUpdates() error
+	InstallUpdate(context.Context) error
+	Relaunch()
+	SaveUpdateDraft(UpdateDraft) error
+	LoadUpdateDraft() (*UpdateDraft, error)
+	ClearUpdateDraft() error
+	// OpenBatchImages asks for images to process; none when canceled.
+	OpenBatchImages() ([]string, error)
+	// CollectImages returns the image files among paths and directly inside
+	// the folders among them, in order and without repeats.
+	CollectImages(paths []string) ([]string, error)
+	// SaveBatchResult copies artwork id into dir, named after stem, and
+	// never replaces a file. It returns the path written.
+	SaveBatchResult(id, dir, stem string) (string, error)
 }
 
 // RequestField is one form or JSON field of a planned generation request.

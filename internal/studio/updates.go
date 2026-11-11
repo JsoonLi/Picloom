@@ -9,11 +9,14 @@ import (
 )
 
 type updatePanel struct {
-	status          domain.UpdateStatus
-	loading, saving bool
-	refreshPending  bool
-	request         uint64
-	problem         string
+	status                           domain.UpdateStatus
+	loading, saving                  bool
+	refreshPending                   bool
+	request                          uint64
+	problem                          string
+	checking, installing, restarting bool
+	installRequested, restartFailed  bool
+	attemptedVersion                 string
 }
 
 func (a *App) updatesPanel() *updatePanel {
@@ -27,6 +30,9 @@ func (a *App) updatesPanel() *updatePanel {
 // the worker, and the result returns through the studio's Window.Update path.
 func (a *App) RefreshUpdates() {
 	panel := a.updatesPanel()
+	if panel.checking || a.updateApplying() {
+		return
+	}
 	if panel.saving {
 		panel.refreshPending = true
 		return
@@ -42,13 +48,14 @@ func (a *App) RefreshUpdates() {
 			}
 			panel.loading = false
 			panel.status = status
+			a.applyPendingUpdate()
 		}
 	})
 }
 
 func (a *App) saveUpdatePreferences(checks, downloads bool) {
 	panel := a.updatesPanel()
-	if panel.loading || panel.saving {
+	if panel.loading || panel.saving || panel.checking || a.updateApplying() {
 		return
 	}
 	panel.request++
@@ -70,6 +77,7 @@ func (a *App) saveUpdatePreferences(checks, downloads bool) {
 				panel.refreshPending = false
 				a.RefreshUpdates()
 			}
+			a.applyPendingUpdate()
 		}
 	})
 }
@@ -82,7 +90,7 @@ func (a *App) updateSettings(c *ui.Context) {
 		if version == "" {
 			version = locale.T("正在读取…")
 		}
-		message := locale.T("启动后自动检查，此后每天检查一次。")
+		message := locale.T("启动后自动检查，此后每小时检查一次。")
 		if panel.loading {
 			message = locale.T("正在读取更新设置…")
 		} else if !status.Supported {
@@ -101,12 +109,19 @@ func (a *App) updateSettings(c *ui.Context) {
 					if status.AvailableVersion != "" {
 						ui.Text(c.Key("updates-available"), fmt.Sprintf(locale.T("发现新版本 %s，可查看下载与安装状态。"), status.AvailableVersion)).FillWidth().FontSize(textSize(c, 13)).FontWeight(500)
 					}
+					if panel.checking {
+						ui.Text(c, locale.T("正在检查更新…")).FillWidth().FontSize(textSize(c, 12))
+					} else if panel.installing {
+						ui.Text(c, locale.T("正在下载安装更新，完成后自动重启…")).FillWidth().FontSize(textSize(c, 12))
+					} else if status.AvailableVersion != "" && a.updateBusy() {
+						ui.Text(c, locale.T("等待生成任务和当前编辑结束后更新。")).FillWidth().FontSize(textSize(c, 12))
+					}
 				})
 				a.updateCheckButton(c)
 			})
 		})
 		checks, downloads := status.AutomaticChecks, status.AutomaticDownloads
-		disabled := panel.loading || panel.saving || !status.Supported
+		disabled := panel.loading || panel.saving || panel.checking || a.updateApplying() || !status.Supported
 		settingsSection(c, "updates-automation-section", locale.T("自动更新"), nil, func() {
 			ui.Column(c).FillWidth().Gap(12).Padding(14).Children(func() {
 				if ui.Checkbox(c.Key("updates-automatic-checks"), &checks, locale.T("自动检查更新")).Disabled(disabled).Changed() {
@@ -118,7 +133,7 @@ func (a *App) updateSettings(c *ui.Context) {
 			})
 			ui.Divider(c)
 			ui.Column(c).FillWidth().Padding(10, 14).Children(func() {
-				settingsNote(c, locale.T("更新包会校验数字签名，后台安装不打断生成，下次启动生效。"))
+				settingsNote(c, locale.T("更新包会校验数字签名。有生成任务时等待，空闲后自动安装并重启，草稿会自动恢复。"))
 			})
 		})
 		if panel.problem != "" {
@@ -129,17 +144,16 @@ func (a *App) updateSettings(c *ui.Context) {
 
 func (a *App) updateCheckButton(c *ui.Context) {
 	panel := a.updatesPanel()
-	ui.Row(c).Shrink(0).Children(func() {
-		if ui.Button(c.Key("check-updates"), locale.T("检查更新")).Label(locale.T("检查软件更新")).Height(34).Padding(6, 16).Disabled(panel.loading || panel.saving || !panel.status.Supported).Clicked() {
-			panel.problem = ""
-			a.run(func() func() {
-				err := a.desktop.CheckForUpdates()
-				return func() {
-					if err != nil {
-						panel.problem = err.Error()
-					}
-				}
-			})
+	ui.Row(c).Shrink(0).Wrap().Gap(8).Children(func() {
+		if ui.Button(c.Key("check-updates"), locale.T("检查更新")).Label(locale.T("检查软件更新")).Height(34).Padding(6, 16).Disabled(panel.loading || panel.saving || panel.checking || a.updateApplying() || !panel.status.Supported).Clicked() {
+			a.checkUpdates(false)
+		}
+		if panel.status.AvailableVersion != "" && !a.updateApplying() {
+			if ui.Button(c.Key("install-update"), locale.T("安装更新")).Height(34).Padding(6, 16).Disabled(panel.loading || panel.saving || panel.checking).Clicked() {
+				panel.problem = ""
+				panel.installRequested, panel.restartFailed, panel.attemptedVersion = true, false, ""
+				a.applyPendingUpdate()
+			}
 		}
 	})
 }

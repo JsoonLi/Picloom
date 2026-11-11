@@ -130,7 +130,7 @@ func TestFailedJobRedoPreservesOriginalSizeUntilEdited(t *testing.T) {
 		t.Fatal("redo changed the original output size")
 	}
 	click(t, tt, "画面比例")
-	click(t, tt, "16:9")
+	click(t, tt, "16:9 横版")
 	if a.draftSize != "" || a.requestSize() != "2736x1536" {
 		t.Fatal("manual size selection did not replace the original size")
 	}
@@ -221,7 +221,7 @@ func TestRestoredMarkupEditorPreservesExactSizeUntilChanged(t *testing.T) {
 			}
 			if manual {
 				click(t, tt, "标注编辑画面比例")
-				click(t, tt, "16:9")
+				click(t, tt, "16:9 横版")
 				if size, err := a.markup.requestSize(); err != nil || size != "2736x1536" {
 					t.Fatalf("manual dimensions did not replace exact size: %q: %v", size, err)
 				}

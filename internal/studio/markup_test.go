@@ -164,7 +164,7 @@ func TestMarkupOutputSizeChoicesReachRequestWithoutResizingAnnotations(t *testin
 				tt.Frame()
 			}
 			click(t, tt, "标注编辑画面比例")
-			click(t, tt, "16:9")
+			click(t, tt, "16:9 横版")
 			if e.resolution != "4k" {
 				t.Fatal("manual ratio must start with the selected provider's default resolution")
 			}
@@ -179,7 +179,7 @@ func TestMarkupOutputSizeChoicesReachRequestWithoutResizingAnnotations(t *testin
 				t.Fatal("resolution selection must preserve the source aspect ratio")
 			}
 			click(t, tt, "标注编辑画面比例")
-			click(t, tt, "16:9")
+			click(t, tt, "16:9 横版")
 			click(t, tt, "标注编辑分辨率")
 			tt.Key(0, ui.KeyHome)
 			tt.Key(0, ui.KeyDown)

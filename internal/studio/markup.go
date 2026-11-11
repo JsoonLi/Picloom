@@ -234,14 +234,14 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 	ui.Row(c.Key("markup-size-controls")).FillWidth().Gap(8).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
 			ui.Text(c, locale.T("画面比例")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-			ratio := e.ratio
+			ratio := ratioLabel(e.ratio)
 			switch ratio {
 			case "auto":
 				ratio = locale.T("自动")
 			case "source":
 				ratio = locale.T("原图比例")
 			}
-			options := append([]string{locale.T("自动"), locale.T("原图比例")}, ratios...)
+			options := append([]string{locale.T("自动"), locale.T("原图比例")}, ratioLabels()...)
 			if e.exactSize != "" {
 				ratio, options = locale.T("沿用"), append([]string{locale.T("沿用")}, options...)
 			}
@@ -253,7 +253,7 @@ func (a *App) markupSizeControls(c *ui.Context, e *markupEditor) {
 				case locale.T("原图比例"):
 					e.ratio = "source"
 				default:
-					e.ratio = ratio
+					e.ratio, _, _ = strings.Cut(ratio, " ")
 				}
 				if e.ratio != "auto" && e.resolution == "auto" {
 					e.resolution = providerDefaultResolution(p)
@@ -346,7 +346,7 @@ func (e *markupEditor) canSubmit() bool {
 }
 
 func (a *App) submitMarkup(e *markupEditor) {
-	if !e.canSubmit() {
+	if a.updateApplying() || !e.canSubmit() {
 		return
 	}
 	e.busy, e.problem = true, ""

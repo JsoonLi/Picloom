@@ -30,6 +30,7 @@ type job struct {
 	Args         domain.GenerateArgs
 	Progress     domain.Progress
 	ProviderName string
+	running      bool
 }
 
 // App owns draft and running-job state independently of transient dialogs.
@@ -38,6 +39,7 @@ type App struct {
 	backend                                      domain.Backend
 	desktop                                      domain.Desktop
 	updates                                      *updatePanel
+	updateRestoreFailed                          bool
 	ctx                                          context.Context
 	cancel                                       context.CancelFunc
 	windowMu                                     sync.RWMutex
@@ -108,6 +110,7 @@ type App struct {
 	providerDeleteOpen                           bool
 	autosave                                     settingsAutosave
 	showAPIKey                                   bool
+	batch                                        *batchState
 }
 
 func New(backend domain.Backend, desktop domain.Desktop) *App {
@@ -176,6 +179,11 @@ func (a *App) start() {
 		if err == nil {
 			page, err = a.backend.ListHistory(domain.HistoryQuery{All: true})
 		}
+		draft, draftErr := a.desktop.LoadUpdateDraft()
+		var draftThumbs map[string]*ui.Bitmap
+		if draft != nil && draftErr == nil {
+			draftThumbs, draftErr = updateDraftThumbnails(draft)
+		}
 		return func() {
 			a.historyLoading = false
 			if err != nil {
@@ -200,6 +208,20 @@ func (a *App) start() {
 				a.gifFrameDurationMS = generation.DefaultGIFFrameDurationMS
 			}
 			a.providerID, a.model, a.ratio, a.resolution = p.ProviderID, p.Model, p.Ratio, p.Resolution
+			if draftErr != nil {
+				a.updateRestoreFailed = true
+				a.problem = draftErr.Error()
+			} else if draft != nil {
+				a.restoreUpdateDraft(draft, draftThumbs)
+				a.run(func() func() {
+					err := a.desktop.ClearUpdateDraft()
+					return func() {
+						if err != nil {
+							a.problem = err.Error()
+						}
+					}
+				})
+			}
 			a.reconcileSelection()
 			a.loadPricing()
 		}
@@ -209,6 +231,7 @@ func (a *App) start() {
 func (a *App) View(c *ui.Context) {
 	studioTheme(c)
 	a.drain()
+	a.applyPendingUpdate()
 	a.updateNotice(c)
 	if !a.started {
 		a.start()
@@ -220,7 +243,7 @@ func (a *App) View(c *ui.Context) {
 	if narrow {
 		gutter = 20
 	}
-	ui.Column(c.Key("workspace")).Fill().Background(c.Theme().Background).Children(func() {
+	ui.Column(c.Key("workspace")).Fill().Disabled(a.updateRestarting()).Background(c.Theme().Background).Children(func() {
 		a.titlebar(c)
 		// The gallery grid scrolls itself; the header above it stays put.
 		ui.Column(c.Key("workspace-body")).Grow(1).MinHeight(0).FillWidth().Padding(top, gutter, 16, gutter).AlignItems(ui.Center).Children(func() {
@@ -266,13 +289,14 @@ func (a *App) View(c *ui.Context) {
 			})
 		})
 	}
+	a.batchPanel(c, narrow)
 	a.settings(c, narrow)
 	a.runSettingsSaves(c)
 	a.preview(c, narrow)
 	if ui.AlertDialog(c.Key("delete-artwork-dialog"), &a.deleteOpen, locale.T("删除作品？"), locale.T("作品和关联参考图将从本机删除，此操作无法撤销。"), locale.T("取消"), locale.T("删除作品")) == 1 {
 		a.deleteArtwork(a.deleteID)
 	}
-	if !a.settingsOpen && !a.previewOpen && !a.deleteOpen {
+	if !a.settingsOpen && !a.previewOpen && !a.deleteOpen && !a.batchOpen() {
 		if c.Shortcut(ui.Cmd, ui.KeyV) {
 			a.importImages(a.desktop.PasteImages)
 		}

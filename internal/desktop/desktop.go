@@ -27,10 +27,13 @@ import (
 const maxReferenceBytes = 20 * 1024 * 1024
 
 type Desktop struct {
-	backend domain.Backend
-	root    string
-	mu      sync.RWMutex
-	window  *mygo.Window
+	backend       domain.Backend
+	root          string
+	mu            sync.RWMutex
+	window        *mygo.Window
+	updateMu      sync.Mutex
+	pendingUpdate *mygo.Update
+	updateReady   bool
 }
 
 var _ domain.Desktop = (*Desktop)(nil)

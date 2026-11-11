@@ -136,16 +136,20 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 				a.gifSizeControl(c, narrow)
 				return
 			}
-			ratioWidth, resolutionWidth := float32(96), float32(88)
-			if narrow {
-				ratioWidth, resolutionWidth = 80, 72
+			ratioWidth, resolutionWidth := float32(128), float32(88)
+			if locale.Current() == locale.English {
+				ratioWidth = 184
 			}
-			ratio, ratioOptions := a.ratio, ratios
+			if narrow {
+				resolutionWidth = 72
+			}
+			ratio, ratioOptions := ratioLabel(a.ratio), ratioLabels()
 			if a.draftSize != "" {
-				ratio, ratioOptions = locale.T("沿用"), append([]string{locale.T("沿用")}, ratios...)
+				ratio, ratioOptions = locale.T("沿用"), append([]string{locale.T("沿用")}, ratioOptions...)
 			}
 			if ui.Select(c.Key("ratio"), &ratio, ratioOptions).Label(locale.T("画面比例")).Width(ratioWidth).MinWidth(0).Height(composerControlHeight).Padding(4, 12).Radius(8).Changed() && ratio != locale.T("沿用") {
-				a.ratio, a.draftSize = ratio, ""
+				a.ratio, _, _ = strings.Cut(ratio, " ")
+				a.draftSize = ""
 				a.savePreferences()
 			}
 			resolutions := []string{"2K", "4K"}
@@ -229,7 +233,7 @@ func (a *App) modelChoices() ([]string, string, map[string]modelChoice) {
 	return labels, current, choices
 }
 func (a *App) canGenerate() bool {
-	return strings.TrimSpace(a.prompt) != "" && utf8.RuneCountInString(a.prompt) <= 20000 && a.provider() != nil && a.model != "" && !a.importing && a.gifOptionsProblem() == "" && (a.draftMarkup == "" || (a.outputFormat != "svg" && a.outputFormat != "gif"))
+	return !a.updateApplying() && strings.TrimSpace(a.prompt) != "" && utf8.RuneCountInString(a.prompt) <= 20000 && a.provider() != nil && a.model != "" && !a.importing && a.gifOptionsProblem() == "" && (a.draftMarkup == "" || (a.outputFormat != "svg" && a.outputFormat != "gif"))
 }
 func (a *App) clearInput() {
 	a.referenceEpoch++
@@ -325,6 +329,9 @@ func (a *App) removeReference(id string) {
 }
 
 func (a *App) generate() {
+	if a.updateApplying() {
+		return
+	}
 	args := domain.GenerateArgs{JobID: newID(), Prompt: strings.TrimRight(a.prompt, "\n"), ProviderID: a.providerID, Model: a.model, Size: a.requestSize(), OutputFormat: a.outputFormat, Markup: a.draftMarkup, ReferenceImages: []string{}}
 	if a.outputFormat == "gif" {
 		args.FrameCount = a.gifFrameCount
@@ -342,13 +349,18 @@ func (a *App) generate() {
 }
 
 func (a *App) startJob(args domain.GenerateArgs, name string) {
-	task := &job{Args: args, ProviderName: name, Progress: domain.Progress{JobID: args.JobID, Status: "generating", Stage: locale.T("准备请求")}}
+	if a.updateApplying() {
+		return
+	}
+	task := &job{Args: args, ProviderName: name, running: true, Progress: domain.Progress{JobID: args.JobID, Status: "generating", Stage: locale.T("准备请求")}}
 	a.jobs = append([]*job{task}, a.jobs...)
 	a.problem = ""
 	a.notice = ""
 	a.run(func() func() {
 		_, err := a.backend.Generate(a.ctx, args, func(p domain.Progress) { a.post(func() { task.Progress = p }) })
 		return func() {
+			task.running = false
+			defer a.applyPendingUpdate()
 			if err != nil {
 				task.Progress.Status = "error"
 				task.Progress.Stage = locale.T("生成失败")

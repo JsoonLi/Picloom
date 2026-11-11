@@ -171,16 +171,16 @@ func TestArtworkCellDoesNotAcquireSelectionBorder(t *testing.T) {
 	}
 }
 
-func TestArtworkImageFrameFillsWidthWithCappedHeight(t *testing.T) {
-	for _, size := range [][2]int{{320, 320}, {640, 320}, {320, 640}} {
+func TestArtworkImageFrameKeepsUniformSize(t *testing.T) {
+	for _, size := range [][2]int{{320, 320}, {640, 320}, {320, 640}, {1280, 80}, {80, 1280}, {0, 0}} {
 		a, tt, _, _ := fixture(t, 1280, 900)
 		record := domain.ImageRecord{ID: "fit-fixture", Prompt: "图片比例测试", Model: "fixture-image", Width: size[0], Height: size[1]}
 		a.history.Items = []domain.ImageRecord{record}
 		a.thumbs[record.ID] = ui.NewBitmap(image.NewNRGBA(image.Rect(0, 0, size[0], size[1])))
 		tt.Frame()
 		r, ok := tt.Find("预览作品 " + record.Prompt)
-		if !ok || r.H <= 0 || r.H > artworkMaxImageHeight {
-			t.Fatalf("image frame must stay within the compact height for %v: %+v", size, r)
+		if !ok || r.H != artworkMaxImageHeight {
+			t.Fatalf("image frame must keep the same height for %v: %+v", size, r)
 		}
 		if r.W != artworkMaxCardWidth-2*artworkCardPadding-2 {
 			t.Fatalf("image must fill the card content width: %+v", r)

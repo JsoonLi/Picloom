@@ -190,6 +190,12 @@ func (d *testDesktop) CheckForUpdates() error {
 	d.updateChecks++
 	return nil
 }
+
+func (d *testDesktop) InstallUpdate(context.Context) error           { return nil }
+func (d *testDesktop) Relaunch()                                     {}
+func (d *testDesktop) SaveUpdateDraft(domain.UpdateDraft) error      { return nil }
+func (d *testDesktop) LoadUpdateDraft() (*domain.UpdateDraft, error) { return nil, nil }
+func (d *testDesktop) ClearUpdateDraft() error                       { return nil }
 func (d *testDesktop) SetUpdatePreferences(checks, downloads bool) (domain.UpdateStatus, error) {
 	d.updatesMu.Lock()
 	defer d.updatesMu.Unlock()

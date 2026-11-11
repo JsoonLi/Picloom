@@ -15,13 +15,13 @@ import (
 
 const (
 	artworkMaxCardWidth   = 180
-	artworkCellHeight     = 252
 	artworkMaxImageHeight = 160
 	artworkGridGap        = 12
-	artworkCardHeight     = 240
 	artworkCardPadding    = 10
 	// Padding, border, two gaps, up to two caption lines and the action row.
 	artworkCardDetailsHeight = 2*artworkCardPadding + 2 + 12 + 36 + 24
+	artworkCardHeight        = artworkMaxImageHeight + artworkCardDetailsHeight
+	artworkCellHeight        = artworkCardHeight + 12
 )
 
 func (a *App) library(c *ui.Context, narrow bool) {
@@ -83,6 +83,7 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				if !narrow {
 					favoriteFilter()
 				}
+				a.batchEntry(c)
 				settings := quietButton(c, "open-settings", "").Label(locale.T("打开设置")).Tooltip(locale.T("设置")).Height(32).Padding(4, 8)
 				settings.Children(func() {
 					ui.Row(c).Center().Gap(8).Children(func() {
@@ -141,10 +142,6 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				return ""
 			}
 			cellHeight := float32(artworkCellHeight)
-			for _, record := range a.history.Items {
-				_, imageHeight := a.artworkImageSize(record)
-				cellHeight = max(cellHeight, imageHeight+artworkCardDetailsHeight+12)
-			}
 			// The grid scrolls itself so only the rows on screen, and a few
 			// around them, are built: hundreds of artworks cost what a
 			// screenful does.
@@ -205,23 +202,10 @@ func (a *App) removeJob(task *job) {
 	}
 }
 
-func (a *App) artworkImageSize(record domain.ImageRecord) (float32, float32) {
-	// The record's size keeps cells steady while thumbnails arrive; the
-	// thumbnail only stands in for legacy records without one.
-	w, h := record.Width, record.Height
-	if thumb := a.thumbs[record.ID]; thumb != nil && (w <= 0 || h <= 0) {
-		w, h = thumb.Size()
-	}
-	if w <= 0 || h <= 0 {
-		w, h = 1, 1
-	}
-	width := float32(artworkMaxCardWidth - 2*artworkCardPadding - 2)
-	return width, min(float32(artworkMaxImageHeight), width*float32(h)/float32(w))
-}
-
 func (a *App) artworkCard(c *ui.Context, record domain.ImageRecord) {
-	imageWidth, imageHeight := a.artworkImageSize(record)
-	glassPane(c, "artwork-"+record.ID).Radius(12).Padding(artworkCardPadding).Gap(6).Width(artworkMaxCardWidth).MaxWidthPercent(100).Children(func() {
+	// Card geometry stays independent of the original image and thumbnail load.
+	imageWidth, imageHeight := float32(artworkMaxCardWidth-2*artworkCardPadding-2), float32(artworkMaxImageHeight)
+	glassPane(c, "artwork-"+record.ID).Radius(12).Padding(artworkCardPadding).Gap(6).Width(artworkMaxCardWidth).MaxWidthPercent(100).Height(artworkCardHeight).Children(func() {
 		a.wantThumbnail(record.ID)
 		thumb := a.thumbs[record.ID]
 		ui.Box(c.Key("artwork-well-" + record.ID)).FillWidth().Height(imageHeight).Center().Children(func() {
@@ -245,7 +229,7 @@ func (a *App) artworkCard(c *ui.Context, record domain.ImageRecord) {
 				iconButton(c, "preview-"+record.ID, locale.T("查看作品 ")+record.ID, "expand").Absolute().Bottom(4).Right(4).Size(24, 24).Background(ui.RGBA(20, 20, 20, 0.6)).TextColor(ui.Hex("#ffffff")).Radius(6).OnClick(func() { a.openArtwork(record) })
 			})
 		})
-		ui.Text(c, record.Prompt).MaxLines(2).FontSize(textSize(c, 13))
+		ui.Text(c, record.Prompt).MaxLines(2).Height(36).FontSize(textSize(c, 13))
 		ui.Row(c).FillWidth().Gap(2).Children(func() {
 			ui.Text(c, record.Model).SingleLine().Grow(1).FontSize(textSize(c, 11)).TextColor(c.Theme().TextMuted)
 			iconButton(c, "reuse-"+record.ID, locale.T("复用参数 ")+record.ID, "images").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() { a.reuse(record) })

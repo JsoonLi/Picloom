@@ -70,6 +70,30 @@ func validateConfig(raw []byte) error {
 			}
 		}
 	}
+	if value, ok := obj["batch"]; ok {
+		batch, err := object(value)
+		if err != nil {
+			return errors.New(locale.T("批量设置无效"))
+		}
+		if raw, ok := batch["concurrency"]; ok {
+			var n int
+			if json.Unmarshal(raw, &n) != nil || n < 0 || n > 16 {
+				return errors.New(locale.T("批量设置无效"))
+			}
+		}
+		for key, allowed := range map[string][]string{"sizeMode": {"", "source", "fixed"}, "ratio": {"", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"}} {
+			if _, ok := batch[key]; ok {
+				if v, err := stringField(batch, key); err != nil || !member(v, allowed...) {
+					return errors.New(locale.T("批量设置无效"))
+				}
+			}
+		}
+		if _, ok := batch["outputDirectory"]; ok {
+			if dir, err := stringField(batch, "outputDirectory"); err != nil || (dir != "" && !filepath.IsAbs(dir)) {
+				return errors.New(locale.T("批量设置无效"))
+			}
+		}
+	}
 	if _, ok := obj["language"]; ok {
 		language, err := stringField(obj, "language")
 		if err != nil || !member(language, "", "system", "zh-Hans", "en") {

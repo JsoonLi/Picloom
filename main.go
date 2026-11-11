@@ -9,8 +9,6 @@ import (
 	"sync"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/updater"
-	updatewindow "github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	"image2ai/internal/application"
 	"image2ai/internal/desktop"
@@ -42,13 +40,9 @@ func run() error {
 	var rootErr error
 	var store *storage.Store
 	var studioApp *studio.App
-	var stopUpdateEvents func()
 	var closeOnce sync.Once
 	closeStore := func() {
 		closeOnce.Do(func() {
-			if stopUpdateEvents != nil {
-				stopUpdateEvents()
-			}
 			if studioApp != nil {
 				studioApp.Close()
 			}
@@ -110,16 +104,11 @@ func run() error {
 		system.SetTheme(config.Theme)
 		system.SetLanguage(config.Language)
 		studioApp = studio.New(backend, system)
-		stopUpdateEvents = updater.OnChange(studioApp.RefreshUpdates)
 		if runtime.GOOS == "darwin" {
-			checkUpdates := updater.MenuItem()
+			checkUpdates := &mygo.MenuItem{Label: locale.T("检查更新")}
 			checkUpdates.Disabled = !mygo.Updater.Enabled()
 			checkUpdates.Click = func(*mygo.MenuItem, *mygo.Window) {
-				go func() {
-					if err := system.CheckForUpdates(); err != nil {
-						mygo.RunOnMain(func() { mygo.Dialog.Error(locale.T("无法检查更新"), err.Error()) })
-					}
-				}()
+				studioApp.OpenUpdateSettings()
 			}
 			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 				{Label: "Picloom", Submenu: []*mygo.MenuItem{
@@ -134,14 +123,24 @@ func run() error {
 		window = mygo.NewWindow(mygo.WindowOptions{Title: locale.T("Picloom · 绘织"), Width: 1280, Height: 880, MinWidth: 740, MinHeight: 560, StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, HideWindowButtons: runtime.GOOS == "windows", Content: ui.View(studioApp.View)})
 		system.SetWindow(window)
 		studioApp.SetWindow(window)
+		// A running batch is not resumed after a restart, so leaving asks first.
+		confirmed := false
+		window.OnClose(func(e *mygo.CloseEvent) {
+			n := studioApp.BatchRunning()
+			if confirmed || n == 0 {
+				return
+			}
+			result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: window, Type: mygo.MessageWarning, Message: locale.T("批量处理还没有完成"), Detail: fmt.Sprintf(locale.T("还有 %d 项未完成，退出后这些任务会被取消。"), n), Buttons: []string{locale.T("继续处理"), locale.T("退出")}, CancelButton: 0, DestructiveButtons: []int{1}})
+			if err != nil || result.Button != 1 {
+				e.PreventDefault()
+				return
+			}
+			confirmed = true
+		})
+		studioApp.StartAutomaticUpdates()
+		mygo.Power.OnResume(studioApp.ResumeAutomaticUpdates)
 		mygo.App.OnWillQuit(func(_ *mygo.QuitEvent) { closeStore() })
 	})
-	// Register after the studio's ready handler: data ownership and migration
-	// checks must complete before the plugin starts its background work.
-	mygo.Use(updatewindow.New(updater.Options{Strings: map[string]updater.Strings{
-		"zh-Hans": {ReadyMessage: "%[1]s %[2]s 已安装，下次启动时生效。立即重启会结束当前任务，请先保存草稿。", Relaunch: "立即重启"},
-		"en":      {ReadyMessage: "%[1]s %[2]s is installed and takes effect next launch. Restarting now ends running tasks, so save your draft first.", Relaunch: "Restart now"},
-	}}))
 	if err := mygo.App.Run(); err != nil {
 		return err
 	}

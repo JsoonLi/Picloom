@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image2ai/internal/locale"
+	"math"
 	"runtime"
 	"strings"
 	"unicode/utf8"
@@ -83,6 +84,13 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 		a.generationToolbar(c, narrow)
 	})
 	ui.Row(c.Key("generation-summary")).FillWidth().Wrap().Gap(8).Padding(12, 0, 0, 0).Children(func() {
+		price := a.priceLabel()
+		if a.outputFormat == "gif" {
+			price = locale.T("GIF 费用以渠道账单为准")
+		}
+		if price != "" {
+			ui.Text(c.Key("generation-price"), price).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		}
 		ui.Spacer(c)
 		ui.Row(c.Key("generation-shortcut")).Gap(4).AlignItems(ui.Center).Children(func() {
 			modifier := "Ctrl"
@@ -102,11 +110,11 @@ func (a *App) composer(c *ui.Context, narrow bool) {
 func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 	ui.Row(c.Key("generation-actions")).FillWidth().Wrap().Gap(8).Padding(composerToolbarPadding).Background(c.Theme().Surface).Children(func() {
 		ui.Row(c.Key("reference-actions")).Gap(4).Children(func() {
-			refs := ui.Button(c.Key("open-images"), "").Label(locale.T("添加参考图")).Height(composerControlHeight).Width(128).Padding(4, 12).Radius(8).Disabled(a.importing || len(a.references) >= 4 || a.draftMarkup != "")
+			refs := ui.Button(c.Key("open-images"), "").Label(locale.T("添加参考图")).Height(composerControlHeight).Width(128).Padding(4, 12).Radius(8).Disabled(a.importing || len(a.references) >= domain.MaxReferenceImages || a.draftMarkup != "")
 			refs.Children(func() {
 				ui.Row(c).Center().Gap(8).Children(func() {
 					ui.Icon(c, icons["image"]).Size(16, 16)
-					limit := 4
+					limit := domain.MaxReferenceImages
 					if a.draftMarkup != "" {
 						limit = 1
 					}
@@ -129,7 +137,7 @@ func (a *App) generationToolbar(c *ui.Context, narrow bool) {
 			a.resolution = ""
 			a.reconcileSelection()
 			a.savePreferences()
-			a.loadPricing()
+			a.loadPricing(true)
 		}
 		ui.Row(c.Key("format-actions")).Gap(8).Children(func() {
 			if a.outputFormat == "gif" {
@@ -255,11 +263,11 @@ func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
 	if a.importing {
 		return
 	}
-	if len(a.references) >= 4 {
-		a.problem = locale.T("最多添加 4 张参考图，请先移除一张。")
+	if len(a.references) >= domain.MaxReferenceImages {
+		a.problem = fmt.Sprintf(locale.T("最多添加 %d 张参考图，请先移除一张。"), domain.MaxReferenceImages)
 		return
 	}
-	remaining := 4 - len(a.references)
+	remaining := domain.MaxReferenceImages - len(a.references)
 	a.referenceEpoch++
 	epoch := a.referenceEpoch
 	a.importing = true
@@ -301,7 +309,7 @@ func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
 			}
 			accepted := 0
 			for _, ref := range refs {
-				if len(a.references) >= 4 {
+				if len(a.references) >= domain.MaxReferenceImages {
 					break
 				}
 				a.references = append(a.references, ref)
@@ -309,7 +317,7 @@ func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
 				accepted++
 			}
 			if truncated || accepted < len(refs) {
-				a.problem = locale.T("最多添加 4 张参考图，超出的图片未添加。")
+				a.problem = fmt.Sprintf(locale.T("最多添加 %d 张参考图，超出的图片未添加。"), domain.MaxReferenceImages)
 			}
 		}
 	})
@@ -414,10 +422,15 @@ func (a *App) flushPreferences() {
 	})
 }
 
-func (a *App) loadPricing() {
+// loadPricing fetches the selected provider's prices once when unset;
+// force refetches so model switches pick up remote price changes.
+func (a *App) loadPricing(force ...bool) {
 	id := a.providerID
 	if id == "" || a.priceLoading[id] {
 		return
+	}
+	if len(force) > 0 && force[0] {
+		delete(a.pricing, id)
 	}
 	if _, ok := a.pricing[id]; ok {
 		return
@@ -452,13 +465,37 @@ func (a *App) requestPricing(id string, notify bool) {
 			}
 			if notify {
 				if err != nil {
-					a.problem = locale.T("暂时无法读取价格，请先保存服务配置后重试。")
+					a.showNotice(locale.T("暂时无法读取价格，请先保存服务配置后重试。"))
 				} else {
 					a.showNotice(locale.T("价格已更新。"))
 				}
 			}
 		}
 	})
+}
+
+// usdToCNY is the fixed rate for turning a provider's USD quote into the
+// RMB amount shown to the user; no live rate is fetched.
+const usdToCNY = 6.68
+
+// priceAmount renders a quoted price in RMB: USD converts at the fixed
+// rate, CNY passes through, and other currencies keep their code.
+func priceAmount(currency string, value float64) string {
+	switch currency {
+	case "USD":
+		value = math.Round(value*usdToCNY*1000) / 1000
+		return fmt.Sprintf("¥%g", value)
+	case "CNY":
+		return fmt.Sprintf("¥%g", value)
+	case "JPY":
+		return fmt.Sprintf("¥%g", value)
+	case "EUR":
+		return fmt.Sprintf("€%g", value)
+	case "GBP":
+		return fmt.Sprintf("£%g", value)
+	default:
+		return fmt.Sprintf("%s %g", currency, value)
+	}
 }
 
 func (a *App) priceLabel() string {
@@ -468,9 +505,9 @@ func (a *App) priceLabel() string {
 	for _, price := range a.pricing[a.providerID] {
 		if price.Model == a.model {
 			if value, ok := price.Prices[a.resolution]; ok {
-				return fmt.Sprintf(locale.T("%s %g / 张"), price.Currency, value)
+				return fmt.Sprintf(locale.T("%s / 张"), priceAmount(price.Currency, value))
 			}
 		}
 	}
-	return locale.T("价格暂不可用")
+	return ""
 }

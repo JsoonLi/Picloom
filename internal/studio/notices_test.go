@@ -1,6 +1,7 @@
 package studio
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,35 @@ func TestOperationNoticesExpireInEveryView(t *testing.T) {
 			tt.Advance(3 * time.Second)
 			if a.notice != "" || tt.HasText(message) {
 				t.Fatal("operation notice must disappear automatically after three seconds")
+			}
+		})
+	}
+}
+
+// A dialog with its own status area shows problems inside itself; the
+// workspace banner stays hidden so the message is never duplicated or
+// half-covered by the dialog.
+func TestProblemShowsOnceWhileDialogIsOpen(t *testing.T) {
+	for _, view := range []string{"workspace", "settings", "batch"} {
+		t.Run(view, func(t *testing.T) {
+			a, tt, _, _ := fixture(t, 1280, 900)
+			switch view {
+			case "settings":
+				a.openSettings()
+			case "batch":
+				a.openBatch()
+			}
+			const message = "本机文件读取失败"
+			a.problem = message
+			tt.Frame()
+			times := 0
+			for _, text := range tt.Texts() {
+				if strings.Contains(text, message) {
+					times++
+				}
+			}
+			if times != 1 {
+				t.Fatalf("problem must render exactly once in %s, got %d", view, times)
 			}
 		})
 	}

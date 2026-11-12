@@ -151,7 +151,7 @@ func (a *App) batchPrice(n int) string {
 	for _, price := range a.pricing[b.providerID] {
 		if price.Model == b.model {
 			if value, ok := price.Prices[b.resolution]; ok {
-				return fmt.Sprintf(locale.T("预计 %s %g"), price.Currency, math.Round(value*float64(n)*1000)/1000)
+				return fmt.Sprintf(locale.T("预计 %s"), priceAmount(price.Currency, math.Round(value*float64(n)*1000)/1000))
 			}
 		}
 	}

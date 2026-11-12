@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"image2ai/internal/domain"
 )
 
@@ -148,8 +149,37 @@ func checkPriceRequestInvalidation(t *testing.T, refresh bool) {
 	}
 	current.result <- 0.12
 	applyPosted(t, a)
-	if a.priceLoading["local"] || a.priceLabel() != "USD 0.12 / 张" {
+	if a.priceLoading["local"] || a.priceLabel() != "¥0.802 / 张" {
 		t.Fatalf("current price not accepted: %s", a.priceLabel())
+	}
+}
+
+// Changing the model asks the provider for prices again so remote price
+// changes show up without a restart.
+func TestModelSwitchRefetchesPrice(t *testing.T) {
+	b := &discoveryBackend{testBackend: fixtureBackend()}
+	calls := 0
+	b.prices = func(context.Context, string) ([]domain.ModelPricing, error) {
+		calls++
+		return []domain.ModelPricing{{Model: "studio-image", Currency: "USD", Prices: map[string]float64{"2k": 0.07}}, {Model: "studio-image-hd", Currency: "USD", Prices: map[string]float64{"2k": 0.12}}}, nil
+	}
+	b.models = func(context.Context, domain.Provider) ([]string, error) { return nil, nil }
+	b.config.Providers[0].Models = []string{"studio-image", "studio-image-hd"}
+	a := New(b, &testDesktop{})
+	t.Cleanup(a.Close)
+	tt := ui.NewTester(a.View, 1280, 900)
+	settle(a, tt)
+	if calls != 1 {
+		t.Fatalf("startup fetched prices %d times", calls)
+	}
+	click(t, tt, "模型")
+	click(t, tt, "本机模拟服务 / studio-image-hd")
+	settle(a, tt)
+	if calls != 2 || a.model != "studio-image-hd" {
+		t.Fatalf("model switch refetched %d times, model=%q", calls, a.model)
+	}
+	if !tt.HasText("¥0.802 / 张") {
+		t.Fatal("refreshed price not shown")
 	}
 }
 

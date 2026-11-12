@@ -45,6 +45,12 @@ func (b *Backend) SaveTheme(theme string) (domain.Config, error) {
 	}
 	return b.Store.UpdateConfig(func(c *domain.Config) error { c.Theme = theme; return nil })
 }
+func (b *Backend) SaveColorTheme(id string) (domain.Config, error) {
+	if !domain.ValidColorTheme(id) {
+		return domain.Config{}, errors.New(locale.T("配色方案无效。"))
+	}
+	return b.Store.UpdateConfig(func(c *domain.Config) error { c.ColorTheme = id; return nil })
+}
 
 // SaveImageDirectory chooses where new works are saved; an empty directory
 // returns to the data directory. Works saved before stay where they are.

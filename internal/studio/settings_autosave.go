@@ -17,8 +17,8 @@ const (
 )
 
 type settingsAutosave struct {
-	providers, proxy, theme, language time.Time
-	saved                             bool
+	providers, proxy, theme, colorTheme, language time.Time
+	saved                                         bool
 }
 
 func (a *App) queueProviderSave(c *ui.Context, delay time.Duration) {
@@ -36,6 +36,11 @@ func (a *App) queueThemeSave(c *ui.Context) {
 	a.autosave.saved = false
 }
 
+func (a *App) queueColorThemeSave(c *ui.Context) {
+	a.autosave.colorTheme = c.Now()
+	a.autosave.saved = false
+}
+
 func (a *App) queueLanguageSave(c *ui.Context) {
 	a.autosave.language = c.Now()
 	a.autosave.saved = false
@@ -43,7 +48,7 @@ func (a *App) queueLanguageSave(c *ui.Context) {
 
 func (a *App) settingsPending() bool {
 	s := a.autosave
-	return !s.providers.IsZero() || !s.proxy.IsZero() || !s.theme.IsZero() || !s.language.IsZero()
+	return !s.providers.IsZero() || !s.proxy.IsZero() || !s.theme.IsZero() || !s.colorTheme.IsZero() || !s.language.IsZero()
 }
 
 // runSettingsSaves starts each save that has come due, one at a time, and
@@ -73,6 +78,7 @@ func (a *App) runSettingsSaves(c *ui.Context) {
 		save()
 	}
 	due(&a.autosave.theme, a.saveTheme)
+	due(&a.autosave.colorTheme, a.saveColorTheme)
 	due(&a.autosave.language, a.saveLanguage)
 	due(&a.autosave.proxy, a.saveProxy)
 	due(&a.autosave.providers, a.autoSaveProviders)
@@ -137,6 +143,9 @@ func (a *App) flushSettingsOnClose() {
 	}
 	if !pending.theme.IsZero() {
 		saved(a.backend.SaveTheme(a.draftTheme))
+	}
+	if !pending.colorTheme.IsZero() {
+		saved(a.backend.SaveColorTheme(a.draftColorTheme))
 	}
 	if !pending.language.IsZero() {
 		saved(a.backend.SaveLanguage(a.draftLanguage))

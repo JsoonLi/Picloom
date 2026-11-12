@@ -78,8 +78,8 @@ func (s *Service) prepare(args domain.GenerateArgs) (*prepared, error) {
 	if args.Prompt == "" || len(utf16.Encode([]rune(args.Prompt))) > 20000 {
 		return nil, errors.New(locale.T("请输入 1 到 20000 字的提示词。"))
 	}
-	if len(args.ReferenceImages) > 4 {
-		return nil, errors.New(locale.T("最多添加 4 张参考图。"))
+	if len(args.ReferenceImages) > domain.MaxReferenceImages {
+		return nil, fmt.Errorf(locale.T("最多添加 %d 张参考图。"), domain.MaxReferenceImages)
 	}
 	inputs := make([][]byte, 0, len(args.ReferenceImages))
 	mimes := []string{}

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"slices"
 	"time"
 )
 
@@ -19,6 +20,15 @@ type Provider struct {
 	GenerationsPath   string   `json:"generationsPath"`
 	EditsPath         string   `json:"editsPath"`
 }
+
+// ColorThemes lists the selectable interface palettes in picker order;
+// the neutral scheme doubles as the default for an unset or unknown value.
+var ColorThemes = []string{"neutral", "ocean", "forest", "sunset", "rose", "violet"}
+
+// ValidColorTheme reports whether id names a saved palette; an empty value
+// means the default neutral scheme.
+func ValidColorTheme(id string) bool { return id == "" || slices.Contains(ColorThemes, id) }
+
 type ProxyConfig struct {
 	Mode   string `json:"mode"`
 	URL    string `json:"url"`
@@ -39,6 +49,8 @@ type Config struct {
 	Providers             []Provider            `json:"providers"`
 	Proxy                 ProxyConfig           `json:"proxy"`
 	Theme                 string                `json:"theme"`
+	// ColorTheme picks the interface palette, "" for the default neutral.
+	ColorTheme string `json:"colorTheme,omitempty"`
 	// Language is "system" (or empty) to follow the computer's language,
 	// else a supported tag: "zh-Hans" or "en".
 	Language string `json:"language,omitempty"`
@@ -114,6 +126,11 @@ type Reference struct {
 	Name    string
 	DataURL string
 }
+
+// MaxReferenceImages caps how many reference images one generation may
+// carry; the composer, file imports and request validation all share it.
+const MaxReferenceImages = 10
+
 type GenerateArgs struct {
 	// Markup is a transparent PNG overlay aligned to the single source image.
 	Markup          string   `json:"markup,omitempty"`
@@ -189,6 +206,7 @@ type Backend interface {
 	SaveProviders([]Provider) (Config, error)
 	SaveProxy(ProxyConfig) (Config, error)
 	SaveTheme(string) (Config, error)
+	SaveColorTheme(string) (Config, error)
 	SaveLanguage(string) (Config, error)
 	SaveImageDirectory(string) (Config, error)
 	SavePreferences(GenerationPreferences) (Config, error)

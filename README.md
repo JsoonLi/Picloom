@@ -33,14 +33,14 @@ You need to supply your own image service and API key. Your service provider han
 
 ## Features
 
-- **Text-to-image and reference images**: Add up to 4 reference images using the file picker, drag and drop, or clipboard. References support PNG, JPEG, and WebP, up to 20 MB each.
+- **Text-to-image and reference images**: Add up to 10 reference images using the file picker, drag and drop, or clipboard. References support PNG, JPEG, and WebP, up to 20 MB each.
 - **Batch processing**: Apply one prompt and aspect ratio to multiple images, add shared references, and manage each batch from a single library card with progress, results, and retries.
 - **Annotation editing**: Mark areas on a single source image with a pen, rectangles, or circles, then describe the changes you want. The source image and annotation layer are preserved for further editing.
 - **Output formats**: Choose PNG, JPEG, WebP, GIF, or SVG. GIF options include frame count, frame duration, and dimensions.
 - **Image library**: Search by prompt or model, filter favorites, inspect generation settings, switch between results and references in the preview, and reuse prompts and settings.
 - **Redo failed jobs**: Restore prompts, references, annotations, and generation settings to the creation area, edit them, and submit again.
 - **Providers and networking**: Manage multiple image services, fetch model lists, set default resolutions, and use the system proxy, a direct connection, or a manual proxy.
-- **Appearance and updates**: English and Simplified Chinese interfaces, light, dark, and system themes, plus in-app updates.
+- **Appearance and updates**: English and Simplified Chinese interfaces, light, dark, and system themes with selectable color schemes, plus in-app updates.
 
 GIF, SVG, and annotation editing require support from your service. GIF supports both text prompts and reference images. Annotation editing supports the default format, PNG, JPEG, and WebP.
 

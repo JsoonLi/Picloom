@@ -34,8 +34,8 @@ func (a *App) restoreGenerationDraft(args domain.GenerateArgs, read func() ([]do
 	a.run(func() func() {
 		refs, err := read()
 		thumbs := make(map[string]*ui.Bitmap)
-		if err == nil && len(refs) > 4 {
-			err = errors.New(locale.T("最多恢复 4 张参考图。"))
+		if err == nil && len(refs) > domain.MaxReferenceImages {
+			err = fmt.Errorf(locale.T("最多恢复 %d 张参考图。"), domain.MaxReferenceImages)
 		}
 		for _, ref := range refs {
 			if err != nil {

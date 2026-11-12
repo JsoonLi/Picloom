@@ -392,7 +392,7 @@ func (a *App) loadPreview(request uint64, read func() ([]byte, error), then func
 func (a *App) openArtwork(record domain.ImageRecord) {
 	request := a.beginPreview(locale.T("作品详情"), &record, a.thumbs[record.ID], record.Width, record.Height)
 	a.previewMedia.result = a.thumbs[record.ID]
-	a.previewMedia.references = make([]*ui.Bitmap, min(4, max(0, record.ReferenceCount)))
+	a.previewMedia.references = make([]*ui.Bitmap, min(domain.MaxReferenceImages, max(0, record.ReferenceCount)))
 	a.previewMedia.problems = make([]string, 1+len(a.previewMedia.references))
 	a.loadPreview(request, func() ([]byte, error) { return a.backend.ReadImage(record.ID) }, nil)
 	a.loadPreviewThumbnails(record)

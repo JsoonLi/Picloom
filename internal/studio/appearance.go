@@ -5,39 +5,89 @@ import (
 	"runtime"
 )
 
+// paletteVariant is one appearance of a color scheme; schemes only tint
+// these surfaces, danger, warning and success stay the toolkit's own.
+type paletteVariant struct {
+	background, surface, surfaceHover, surfacePressed, border string
+	text, textMuted                                           string
+	accent, accentHover, accentPressed, accentText            string
+}
+
+type palette struct {
+	light, dark paletteVariant
+}
+
+// palettes hold every selectable color scheme, keyed by the ids in
+// domain.ColorThemes.
+var palettes = map[string]palette{
+	"neutral": {
+		light: paletteVariant{background: "#fcfcf9", surface: "#ffffff", surfaceHover: "#f3f2ee", surfacePressed: "#e9e7e0", border: "#e5e3dd", text: "#292824", textMuted: "#77746c", accent: "#34332f", accentHover: "#45443e", accentPressed: "#24231f", accentText: "#fafafa"},
+		dark:  paletteVariant{background: "#101010", surface: "#242424", surfaceHover: "#303030", surfacePressed: "#383838", border: "#3b3b3b", text: "#fafafa", textMuted: "#a6a6a6", accent: "#eaeaea", accentHover: "#ffffff", accentPressed: "#d5d5d5", accentText: "#1b1b1b"}},
+	"ocean": {
+		light: paletteVariant{background: "#f8fafb", surface: "#ffffff", surfaceHover: "#eef3f5", surfacePressed: "#e3eaee", border: "#dde4e8", text: "#26333c", textMuted: "#6d7c86", accent: "#1c6f96", accentHover: "#2c7ea6", accentPressed: "#155a7c", accentText: "#f5fafc"},
+		dark:  paletteVariant{background: "#0f1517", surface: "#222b2f", surfaceHover: "#2d373c", surfacePressed: "#354146", border: "#384349", text: "#f4f8f9", textMuted: "#a2b0b6", accent: "#79c4e0", accentHover: "#8fd3ec", accentPressed: "#61b1d0", accentText: "#10242e"}},
+	"forest": {
+		light: paletteVariant{background: "#f9faf7", surface: "#ffffff", surfaceHover: "#eff2eb", surfacePressed: "#e4e9df", border: "#dfe4d9", text: "#28302a", textMuted: "#707a6f", accent: "#4d7c4a", accentHover: "#5d8c5a", accentPressed: "#3f6b3c", accentText: "#f7faf5"},
+		dark:  paletteVariant{background: "#111512", surface: "#232b25", surfaceHover: "#2e3731", surfacePressed: "#364139", border: "#39443c", text: "#f5f8f5", textMuted: "#a4b1a6", accent: "#93cf9b", accentHover: "#a6dcad", accentPressed: "#7fbf88", accentText: "#14251a"}},
+	"sunset": {
+		light: paletteVariant{background: "#fcfaf6", surface: "#ffffff", surfaceHover: "#f5f0e9", surfacePressed: "#ebe5da", border: "#e7e0d5", text: "#322d26", textMuted: "#7d7467", accent: "#c2570a", accentHover: "#d1661c", accentPressed: "#a84a05", accentText: "#fdf8f2"},
+		dark:  paletteVariant{background: "#141210", surface: "#262320", surfaceHover: "#312d29", surfacePressed: "#393531", border: "#413d37", text: "#faf6f1", textMuted: "#ada59a", accent: "#eda668", accentHover: "#f6b47c", accentPressed: "#e09355", accentText: "#2a1c0e"}},
+	"rose": {
+		light: paletteVariant{background: "#fcfafb", surface: "#ffffff", surfaceHover: "#f5eff1", surfacePressed: "#ebe4e7", border: "#e6dde0", text: "#2f292c", textMuted: "#7a6f74", accent: "#bf3f66", accentHover: "#cf4f76", accentPressed: "#a63154", accentText: "#fdf5f7"},
+		dark:  paletteVariant{background: "#141113", surface: "#262225", surfaceHover: "#312c30", surfacePressed: "#393438", border: "#403a3e", text: "#faf6f7", textMuted: "#aca2a7", accent: "#ec8dab", accentHover: "#f59ebb", accentPressed: "#de7a99", accentText: "#2c121d"}},
+	"violet": {
+		light: paletteVariant{background: "#faf9fb", surface: "#ffffff", surfaceHover: "#f1eef4", surfacePressed: "#e6e2ec", border: "#e2dee7", text: "#2c2831", textMuted: "#746e7d", accent: "#6b52a3", accentHover: "#7a61b0", accentPressed: "#5a448f", accentText: "#f8f6fc"},
+		dark:  paletteVariant{background: "#121014", surface: "#252229", surfaceHover: "#302c35", surfacePressed: "#38343d", border: "#3e3a44", text: "#f7f5fa", textMuted: "#a7a1b0", accent: "#b7a0e2", accentHover: "#c5b0ec", accentPressed: "#a68fd8", accentText: "#1e1531"}},
+}
+
+// paletteFor resolves the saved or draft scheme, unknown values falling
+// back to the neutral default.
+func paletteFor(id string) palette {
+	if p, ok := palettes[id]; ok {
+		return p
+	}
+	return palettes["neutral"]
+}
+
+// accent returns the scheme's accent for the current appearance; the
+// settings picker uses it for the preview dot.
+func (p palette) accent(dark bool) ui.Color {
+	if dark {
+		return ui.Hex(p.dark.accent)
+	}
+	return ui.Hex(p.light.accent)
+}
+
 // One native theme keeps the studio, overlays and controls on the same scale.
-// High-contrast appearance remains the toolkit's own accessible appearance.
-func studioTheme(c *ui.Context) {
+// The chosen color scheme tints every surface; high-contrast appearance
+// remains the toolkit's own accessible appearance.
+func (a *App) studioTheme(c *ui.Context) {
 	t := *c.Theme()
 	if !c.Preferences().HighContrast {
+		id := a.config.ColorTheme
+		if a.settingsOpen {
+			id = a.draftColorTheme
+		}
+		v := paletteFor(id).light
 		if t.Dark {
-			t.Background = ui.Hex("#101010")
-			t.Surface = ui.Hex("#242424")
-			t.SurfaceHover = ui.Hex("#303030")
-			t.SurfacePressed = ui.Hex("#383838")
-			t.Border = ui.Hex("#3b3b3b")
-			t.Text = ui.Hex("#fafafa")
-			t.TextMuted = ui.Hex("#a6a6a6")
-			t.Accent = ui.Hex("#eaeaea")
-			t.AccentHover = ui.Hex("#ffffff")
-			t.AccentPressed = ui.Hex("#d5d5d5")
-			t.AccentText = ui.Hex("#1b1b1b")
-			t.Selection = ui.RGBA(255, 255, 255, 0.2)
-			t.Focus = ui.RGBA(240, 240, 240, 0.65)
-		} else {
-			t.Background = ui.Hex("#fcfcf9")
-			t.Surface = ui.Hex("#ffffff")
-			t.SurfaceHover = ui.Hex("#f3f2ee")
-			t.SurfacePressed = ui.Hex("#e9e7e0")
-			t.Border = ui.Hex("#e5e3dd")
-			t.Text = ui.Hex("#292824")
-			t.TextMuted = ui.Hex("#77746c")
-			t.Accent = ui.Hex("#34332f")
-			t.AccentHover = ui.Hex("#45443e")
-			t.AccentPressed = ui.Hex("#24231f")
-			t.AccentText = ui.Hex("#fafafa")
-			t.Selection = ui.RGBA(40, 40, 40, 0.16)
-			t.Focus = ui.RGBA(55, 55, 55, 0.55)
+			v = paletteFor(id).dark
+		}
+		t.Background = ui.Hex(v.background)
+		t.Surface = ui.Hex(v.surface)
+		t.SurfaceHover = ui.Hex(v.surfaceHover)
+		t.SurfacePressed = ui.Hex(v.surfacePressed)
+		t.Border = ui.Hex(v.border)
+		t.Text = ui.Hex(v.text)
+		t.TextMuted = ui.Hex(v.textMuted)
+		t.Accent = ui.Hex(v.accent)
+		t.AccentHover = ui.Hex(v.accentHover)
+		t.AccentPressed = ui.Hex(v.accentPressed)
+		t.AccentText = ui.Hex(v.accentText)
+		t.Selection = t.Accent.Alpha(0.16)
+		t.Focus = t.Accent.Alpha(0.55)
+		if t.Dark {
+			t.Selection = t.Accent.Alpha(0.2)
+			t.Focus = t.Accent.Alpha(0.65)
 		}
 	}
 	t.Radius = 10
@@ -124,14 +174,15 @@ func glassPane(c *ui.Context, key string) ui.Element {
 	}
 	return pane
 }
+
+// toolbarColor is a half-step between the window and its surfaces,
+// derived from the scheme's own colors so every palette stays tinted.
 func toolbarColor(c *ui.Context) ui.Color {
 	if c.Preferences().HighContrast {
 		return c.Theme().Surface
 	}
-	if c.Theme().Dark {
-		return ui.Hex("#202020")
-	}
-	return ui.Hex("#f7f6f2")
+	t := c.Theme()
+	return t.Background.Mix(t.Border, 0.35)
 }
 
 func popoverTheme(c *ui.Context) func() {

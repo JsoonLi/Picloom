@@ -2,6 +2,7 @@ package studio
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -45,7 +46,7 @@ func TestSubmitClearsSubmittedPromptAndReferences(t *testing.T) {
 				t.Fatal("submitted references and thumbnails remain in composer")
 			}
 			tt.Frame()
-			if _, ok := tt.Find("标注编辑参考图 已提交图片.png"); ok || !tt.HasText("参考图 0/4") {
+			if _, ok := tt.Find("标注编辑参考图 已提交图片.png"); ok || !tt.HasText(fmt.Sprintf("参考图 0/%d", domain.MaxReferenceImages)) {
 				t.Fatal("submitted reference remains visible in the composer")
 			}
 			click(t, tt, "提示词")

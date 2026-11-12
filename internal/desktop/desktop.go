@@ -117,7 +117,7 @@ func makeReference(name string, data []byte) (domain.Reference, error) {
 	return domain.Reference{ID: rand.Text(), Name: name, DataURL: "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)}, nil
 }
 func (d *Desktop) ImportFiles(paths []string, remaining int) ([]domain.Reference, error) {
-	remaining = max(0, min(4, remaining))
+	remaining = max(0, min(domain.MaxReferenceImages, remaining))
 	if len(paths) > remaining {
 		paths = paths[:remaining]
 	}

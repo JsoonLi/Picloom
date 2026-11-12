@@ -2,6 +2,7 @@ package studio
 
 import (
 	"encoding/base64"
+	"fmt"
 	"image2ai/internal/domain"
 	"testing"
 )
@@ -17,7 +18,10 @@ func TestLegacy1KLandscapeReusePreservesAspectRatio(t *testing.T) {
 func TestImportIgnoresInvalidReferencesOutsideRemainingSlots(t *testing.T) {
 	a, tt, b, _ := fixture(t, 1280, 900)
 	valid := domain.Reference{ID: "new-reference", Name: "valid.png", DataURL: "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.image)}
-	a.references = []domain.Reference{{ID: "old1", DataURL: valid.DataURL}, {ID: "old2", DataURL: valid.DataURL}, {ID: "old3", DataURL: valid.DataURL}}
+	a.references = nil
+	for i := 0; i < domain.MaxReferenceImages-1; i++ {
+		a.references = append(a.references, domain.Reference{ID: fmt.Sprintf("old%d", i), DataURL: valid.DataURL})
+	}
 	a.importImages(func(remaining int) ([]domain.Reference, error) {
 		if remaining != 1 {
 			t.Errorf("remaining=%d", remaining)
@@ -25,7 +29,7 @@ func TestImportIgnoresInvalidReferencesOutsideRemainingSlots(t *testing.T) {
 		return []domain.Reference{valid, {ID: "ignored-invalid", Name: "ignored", DataURL: "invalid"}}, nil
 	})
 	settle(a, tt)
-	if len(a.references) != 4 || a.problem == "参考图数据无效。" {
+	if len(a.references) != domain.MaxReferenceImages || a.problem == "参考图数据无效。" {
 		t.Fatalf("refs=%d error=%s", len(a.references), a.problem)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image2ai/internal/domain"
 	"image2ai/internal/locale"
 	"path/filepath"
 	"strings"
@@ -104,6 +105,12 @@ func validateConfig(raw []byte) error {
 		var theme string
 		if json.Unmarshal(value, &theme) != nil || !member(theme, "system", "light", "dark") {
 			return errors.New(locale.T("主题无效"))
+		}
+	}
+	if value, ok := obj["colorTheme"]; ok {
+		var id string
+		if json.Unmarshal(value, &id) != nil || !domain.ValidColorTheme(id) {
+			return errors.New(locale.T("配色方案无效"))
 		}
 	}
 	if value, ok := obj["proxy"]; ok {

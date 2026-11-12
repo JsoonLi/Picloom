@@ -37,6 +37,7 @@ func (a *App) openSettings() {
 		}
 		a.draftProxy = a.config.Proxy
 		a.draftTheme = a.config.Theme
+		a.draftColorTheme = a.config.ColorTheme
 		a.draftLanguage = a.config.Language
 		if a.draftLanguage == "" {
 			a.draftLanguage = "system"
@@ -136,7 +137,8 @@ func (a *App) settingsStatus(c *ui.Context) {
 // deeper step than the toolbar so a white chosen item stands out on it.
 func selectionTrack(c *ui.Context) ui.Color {
 	if !c.Preferences().HighContrast && !c.Theme().Dark {
-		return ui.Hex("#efeee9")
+		t := c.Theme()
+		return t.Background.Mix(t.Border, 0.65)
 	}
 	return toolbarColor(c)
 }
@@ -782,6 +784,10 @@ func (a *App) appearanceSettings(c *ui.Context) {
 			}
 		})
 		ui.Divider(c)
+		settingsRow(c, locale.T("配色"), locale.T("界面色调，浅色与深色各自生效"), func() {
+			a.colorThemePicker(c)
+		})
+		ui.Divider(c)
 		languages := []string{"system", locale.Chinese, locale.English}
 		names := []string{locale.T("跟随系统"), "简体中文", "English"}
 		name := names[0]
@@ -837,6 +843,76 @@ func (a *App) saveTheme() {
 			a.config = config
 			a.autosave.saved = true
 			a.desktop.SetTheme(theme)
+		}
+	})
+}
+
+// colorThemePicker shows every scheme as a swatch chip; picking one tints
+// the interface at once and autosaves like the theme select.
+func (a *App) colorThemePicker(c *ui.Context) {
+	ui.Row(c.Key("color-themes")).Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
+		for _, id := range domain.ColorThemes {
+			scheme := paletteFor(id)
+			name := colorThemeName(id)
+			selected := a.draftColorTheme == id || (a.draftColorTheme == "" && id == "neutral")
+			chip := ui.Button(c.Key("color-theme-"+id), "").Label(locale.T("配色：")+name).Height(32).Padding(4, 12).Radius(16).FontSize(textSize(c, 13)).Border(1, c.Theme().Border).Background(c.Theme().Surface).TextColor(c.Theme().TextMuted)
+			if selected {
+				chip.Background(c.Theme().SurfaceHover).Border(1, c.Theme().Focus).TextColor(c.Theme().Text).FontWeight(500)
+			}
+			if chip.Hovered() {
+				chip.Background(c.Theme().SurfaceHover)
+			}
+			if chip.Pressed() {
+				chip.Background(c.Theme().SurfacePressed)
+			}
+			chip.Children(func() {
+				ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(12, 12).Shrink(0).Radius(6).Background(scheme.accent(c.Theme().Dark)).Border(1, c.Theme().Border)
+					ui.Text(c, name).SingleLine()
+				})
+			})
+			choice := id
+			if chip.Clicked() && !selected {
+				a.draftColorTheme = choice
+				a.queueColorThemeSave(c)
+			}
+		}
+	})
+}
+
+// colorThemeName is the picker's label for a scheme, kept as literals so
+// every name is translated.
+func colorThemeName(id string) string {
+	switch id {
+	case "ocean":
+		return locale.T("海洋")
+	case "forest":
+		return locale.T("竹林")
+	case "sunset":
+		return locale.T("暖阳")
+	case "rose":
+		return locale.T("蔷薇")
+	case "violet":
+		return locale.T("紫藤")
+	default:
+		return locale.T("石墨")
+	}
+}
+
+func (a *App) saveColorTheme() {
+	id := a.draftColorTheme
+	a.saving = true
+	a.problem = ""
+	a.runSettingsWrite(func() func() {
+		config, err := a.backend.SaveColorTheme(id)
+		return func() {
+			a.saving = false
+			if err != nil {
+				a.problem = err.Error()
+				return
+			}
+			a.config = config
+			a.autosave.saved = true
 		}
 	})
 }

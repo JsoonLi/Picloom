@@ -99,6 +99,12 @@ func (b *testBackend) SaveTheme(s string) (domain.Config, error) {
 	b.config.Theme = s
 	return b.config, nil
 }
+func (b *testBackend) SaveColorTheme(s string) (domain.Config, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.config.ColorTheme = s
+	return b.config, nil
+}
 func (b *testBackend) DiscoverModels(context.Context, domain.Provider) ([]string, error) {
 	return []string{"studio-image", "studio-image-hd"}, nil
 }
@@ -361,12 +367,12 @@ func TestDeleteRequiresConfirmationAndExportCancelIsQuiet(t *testing.T) {
 
 func TestImportLimitAndProviderResolutionFallback(t *testing.T) {
 	a, tt, b, d := fixture(t, 1280, 900)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < domain.MaxReferenceImages+1; i++ {
 		d.refs = append(d.refs, domain.Reference{Name: "参考图.png", DataURL: "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.image)})
 	}
 	click(t, tt, "添加参考图")
 	settle(a, tt)
-	if len(a.references) != 4 || a.problem == "" {
+	if len(a.references) != domain.MaxReferenceImages || a.problem == "" {
 		t.Fatal("reference count limit was not enforced")
 	}
 	a.config.Providers[0].Resolutions = []string{"4k"}
@@ -488,6 +494,23 @@ func containsText(text, part string) bool {
 	return len(text) >= len(part) && bytes.Contains([]byte(text), []byte(part))
 }
 func fmtSize(size [2]int) string { return strconv.Itoa(size[0]) + "x" + strconv.Itoa(size[1]) }
+
+// The composer must keep showing the selected model's price; the summary
+// row once lost it when untranslated siblings were removed.
+func TestComposerShowsModelPrice(t *testing.T) {
+	a, tt, _, _ := fixture(t, 1280, 900)
+	if !tt.HasText("¥0.468 / 张") {
+		t.Fatal("model price missing from the composer summary")
+	}
+	if priceAmount("USD", 0.0298) != "¥0.199" || priceAmount("CNY", 0.02) != "¥0.02" || priceAmount("CHF", 0.02) != "CHF 0.02" {
+		t.Fatal("USD must convert to RMB; other codes keep their form")
+	}
+	a.outputFormat = "gif"
+	tt.Frame()
+	if !tt.HasText("GIF 费用以渠道账单为准") || tt.HasText("¥0.468") {
+		t.Fatal("GIF output must not quote a per-image price")
+	}
+}
 
 func TestNativeScreenshots(t *testing.T) {
 	output := os.Getenv("IMAGE2AI_STUDIO_SNAPSHOTS")

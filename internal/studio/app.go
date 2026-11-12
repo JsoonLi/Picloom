@@ -103,6 +103,7 @@ type App struct {
 	draftModelOptions                            map[string][]string
 	draftProxy                                   domain.ProxyConfig
 	draftTheme                                   string
+	draftColorTheme                              string
 	draftLanguage                                string
 	saving                                       bool
 	discoverBusy                                 bool
@@ -239,7 +240,7 @@ func (a *App) start() {
 }
 
 func (a *App) View(c *ui.Context) {
-	studioTheme(c)
+	a.studioTheme(c)
 	a.drain()
 	a.applyPendingUpdate()
 	a.updateNotice(c)
@@ -368,7 +369,9 @@ func (a *App) withWindow(fn func(*mygo.Window)) {
 	}
 }
 func (a *App) messages(c *ui.Context) {
-	if a.problem != "" {
+	// A dialog shows problems inside itself; the workspace banner would
+	// only duplicate the message half-covered behind the dialog.
+	if a.problem != "" && !a.settingsOpen && !a.previewOpen && !a.batchOpen() {
 		ui.Row(c.Key("error-message")).FillWidth().Gap(8).Padding(12).Margin(16, 0, 0, 0).Background(c.Theme().Surface).Radius(12).Children(func() {
 			ui.Text(c, a.problem).Grow(1).TextColor(c.Theme().Danger).Label(locale.T("错误：") + a.problem)
 			if iconButton(c, "dismiss-error", locale.T("关闭提示"), "close").Clicked() {

@@ -66,7 +66,6 @@ type batchState struct {
 	sharedThumbs      map[string]*ui.Bitmap
 	prompt            string
 	providerID, model string
-	sizeMode          string
 	ratio, resolution string
 	outputFormat      string
 	parallel          float64
@@ -91,12 +90,12 @@ type batchRequest struct {
 }
 
 func (b *batchState) request() batchRequest {
-	return batchRequest{prompt: b.prompt, providerID: b.providerID, model: b.model, sizeMode: b.sizeMode, ratio: b.ratio, resolution: b.resolution, outputFormat: b.outputFormat, shared: append([]domain.Reference(nil), b.shared...)}
+	return batchRequest{prompt: b.prompt, providerID: b.providerID, model: b.model, sizeMode: "fixed", ratio: b.ratio, resolution: b.resolution, outputFormat: b.outputFormat, shared: append([]domain.Reference(nil), b.shared...)}
 }
 
 func (a *App) batchState() *batchState {
 	if a.batch == nil {
-		a.batch = &batchState{sharedThumbs: map[string]*ui.Bitmap{}, sizeMode: "source", ratio: "3:4", parallel: batchDefaultParallel}
+		a.batch = &batchState{sharedThumbs: map[string]*ui.Bitmap{}, ratio: "3:4", parallel: batchDefaultParallel}
 	}
 	b := a.batch
 	if !b.prefsLoaded && a.loaded {
@@ -104,9 +103,6 @@ func (a *App) batchState() *batchState {
 		p := a.config.Batch
 		if p.Concurrency > 0 {
 			b.parallel = float64(min(batchMaxParallel, p.Concurrency))
-		}
-		if p.SizeMode != "" {
-			b.sizeMode = p.SizeMode
 		}
 		if p.Ratio != "" {
 			b.ratio = p.Ratio
@@ -124,8 +120,19 @@ func (a *App) batchState() *batchState {
 func (a *App) openBatch() {
 	b := a.batchState()
 	b.open, b.view = true, ""
+	a.invalidateBatchPlans()
 	a.reconcileBatch()
 	a.loadBatchPricing()
+}
+
+// Reopening a draft or changing its provider requires a fresh request preview.
+func (a *App) invalidateBatchPlans() {
+	if a.batch == nil {
+		return
+	}
+	for _, item := range a.batch.items {
+		item.planKey, item.Plan, item.PlanErr = "", nil, ""
+	}
 }
 
 func (a *App) loadBatchPricing() {
@@ -456,7 +463,7 @@ func (a *App) readBatchSource(path, name string) (domain.Reference, error) {
 
 func (a *App) saveBatchPreferences() {
 	b := a.batchState()
-	prefs := domain.BatchPreferences{Concurrency: int(b.parallel), SizeMode: b.sizeMode, Ratio: b.ratio, OutputDirectory: b.outputDir}
+	prefs := domain.BatchPreferences{Concurrency: int(b.parallel), SizeMode: "fixed", Ratio: b.ratio, OutputDirectory: b.outputDir}
 	a.run(func() func() {
 		config, err := a.backend.SaveBatchPreferences(prefs)
 		return func() {

@@ -34,6 +34,7 @@ You need to supply your own image service and API key. Your service provider han
 ## Features
 
 - **Text-to-image and reference images**: Add up to 4 reference images using the file picker, drag and drop, or clipboard. References support PNG, JPEG, and WebP, up to 20 MB each.
+- **Batch processing**: Apply one prompt and aspect ratio to multiple images, add shared references, and manage each batch from a single library card with progress, results, and retries.
 - **Annotation editing**: Mark areas on a single source image with a pen, rectangles, or circles, then describe the changes you want. The source image and annotation layer are preserved for further editing.
 - **Output formats**: Choose PNG, JPEG, WebP, GIF, or SVG. GIF options include frame count, frame duration, and dimensions.
 - **Image library**: Search by prompt or model, filter favorites, inspect generation settings, switch between results and references in the preview, and reuse prompts and settings.

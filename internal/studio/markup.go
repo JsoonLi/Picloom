@@ -34,7 +34,7 @@ type markupEditor struct {
 }
 
 func (a *App) beginMarkup() {
-	if a.previewLoading || len(a.previewData) == 0 {
+	if a.updateRestarting() || a.previewLoading || len(a.previewData) == 0 {
 		return
 	}
 	data := a.previewData
@@ -46,6 +46,9 @@ func (a *App) loadMarkup(read func() ([]byte, error), direct bool) {
 }
 
 func (a *App) loadMarkupWithBase(read func() ([]byte, error), direct bool, base string) {
+	if a.updateRestarting() {
+		return
+	}
 	e := &markupEditor{providerID: a.providerID, model: a.model, outputFormat: a.outputFormat, ratio: "auto", resolution: "auto", tool: "pen", weight: "中", busy: true, direct: direct}
 	e.baseMarkup = base
 	if base != "" {

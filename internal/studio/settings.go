@@ -678,6 +678,7 @@ func (a *App) saveProviders() {
 			previousDefault := providerDefaultResolution(a.provider())
 			previousResolution := a.resolution
 			a.config = config
+			a.invalidateBatchPlans()
 			if p := a.provider(); p != nil && providerDefaultResolution(p) != previousDefault {
 				a.resolution = providerDefaultResolution(p)
 			}

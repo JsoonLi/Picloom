@@ -76,16 +76,16 @@ func (a *App) batchPanel(c *ui.Context, narrow bool) {
 			// On a short window the settings scroll so the list and the start
 			// button stay in view.
 			ui.Scroll(c.Key("batch-settings")).FillWidth().Shrink(1).MinHeight(64).Gap(10).Children(func() {
-				a.batchSources(c)
 				a.batchShared(c)
 				placeholder := c.Theme().TextMuted
-				ui.TextArea(c.Key("batch-prompt"), &b.prompt).Label(locale.T("批量提示词")).Placeholder(locale.T("对每张图要做的处理，例如：把背景换成纯白")).PlaceholderColor(placeholder).Lines(2, 6).FillWidth().Padding(10).FontSize(textSize(c, 14))
+				ui.TextArea(c.Key("batch-prompt"), &b.prompt).Label(locale.T("批量提示词")).Placeholder(locale.T("处理要求，例如：背景换成纯白")).PlaceholderColor(placeholder).Lines(2, 6).FillWidth().Padding(10).FontSize(textSize(c, 14))
 				if utf8.RuneCountInString(b.prompt) > 20000 {
 					ui.Text(c, locale.T("提示词不能超过 20000 字。")).TextColor(c.Theme().Danger)
 				}
 				a.batchOptions(c, narrow)
 				a.batchOutput(c)
 			})
+			a.batchSources(c)
 			a.batchList(c)
 			a.batchFooter(c)
 		})
@@ -132,7 +132,9 @@ func (a *App) batchSources(c *ui.Context) {
 	b := a.batch
 	ui.Row(c.Key("batch-sources")).FillWidth().Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
 		batchLabel(c, locale.T("待处理图"))
-		ui.Text(c.Key("batch-source-count"), fmt.Sprintf(locale.T("共 %d 张"), len(b.items))).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		if len(b.items) > 0 {
+			ui.Text(c.Key("batch-source-count"), fmt.Sprintf(locale.T("%d 张"), len(b.items))).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		}
 		ui.Spacer(c)
 		if ui.Button(c.Key("batch-add-files"), locale.T("添加图片")).Height(30).Padding(4, 12).Disabled(b.adding).Clicked() {
 			a.addBatchFiles(a.desktop.OpenBatchImages)
@@ -153,15 +155,12 @@ func (a *App) batchSources(c *ui.Context) {
 			b.clearOpen = true
 		}
 	})
-	if b.adding {
-		ui.Text(c, locale.T("正在读取图片…")).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
-	}
 }
 
 func (a *App) batchShared(c *ui.Context) {
 	b := a.batch
 	ui.Row(c.Key("batch-shared")).FillWidth().Wrap().Gap(10).AlignItems(ui.Center).Children(func() {
-		batchLabel(c, fmt.Sprintf(locale.T("共用参考图 %d/%d"), len(b.shared), batchMaxShared))
+		batchLabel(c, fmt.Sprintf(locale.T("共用参考图 %d/%d"), len(b.shared), batchMaxShared)).Tooltip(locale.T("原图在前，参考图按添加顺序排列。"))
 		for _, reference := range b.shared {
 			ref := reference
 			ui.Box(c.Key("batch-shared-"+ref.ID)).Size(44, 44).Children(func() {
@@ -176,7 +175,6 @@ func (a *App) batchShared(c *ui.Context) {
 				a.addBatchShared(a.desktop.OpenImages)
 			}
 		}
-		ui.Text(c, locale.T("每项请求中，待处理图排第一张，共用参考图依次排在后面。")).Grow(1).Basis(200).MinWidth(0).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 	})
 }
 
@@ -201,26 +199,13 @@ func (a *App) batchOptions(c *ui.Context, narrow bool) {
 			a.reconcileBatch()
 			a.loadBatchPricing()
 		}
-		modes := []string{locale.T("跟随原图比例"), locale.T("指定比例")}
-		mode := modes[0]
-		if b.sizeMode == "fixed" {
-			mode = modes[1]
+		ratio := ratioLabel(b.ratio)
+		ratioWidth := float32(128)
+		if locale.Current() == locale.English {
+			ratioWidth = 184
 		}
-		if control(ui.Select(c.Key("batch-size-mode"), &mode, modes).Label(locale.T("尺寸方式"))).Width(140).Changed() {
-			b.sizeMode = "source"
-			if mode == modes[1] {
-				b.sizeMode = "fixed"
-			}
-		}
-		if b.sizeMode == "fixed" {
-			ratio := ratioLabel(b.ratio)
-			ratioWidth := float32(128)
-			if locale.Current() == locale.English {
-				ratioWidth = 184
-			}
-			if control(ui.Select(c.Key("batch-ratio"), &ratio, ratioLabels())).Label(locale.T("批量画面比例")).Width(ratioWidth).Changed() {
-				b.ratio, _, _ = strings.Cut(ratio, " ")
-			}
+		if control(ui.Select(c.Key("batch-ratio"), &ratio, ratioLabels())).Label(locale.T("批量画面比例")).Width(ratioWidth).Changed() {
+			b.ratio, _, _ = strings.Cut(ratio, " ")
 		}
 		resolutions := []string{}
 		if p := a.batchProvider(); p != nil {
@@ -243,32 +228,32 @@ func (a *App) batchOptions(c *ui.Context, narrow bool) {
 func (a *App) batchOutput(c *ui.Context) {
 	b := a.batch
 	ui.Row(c.Key("batch-output")).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-		batchLabel(c, locale.T("输出目录"))
-		text := locale.T("未设置，结果只保存在作品库")
+		batchLabel(c, locale.T("保存位置"))
+		text := locale.T("作品库")
+		tooltip := text
+		choose := locale.T("另存到…")
 		color := c.Theme().TextMuted
 		if b.outputDir != "" {
-			text, color = b.outputDir, c.Theme().Text
+			text = fmt.Sprintf(locale.T("作品库 + %s"), b.outputDir)
+			tooltip = b.outputDir + "\n" + locale.T("按原文件名另存，同名文件自动编号。")
+			choose, color = locale.T("更改…"), c.Theme().Text
 		}
-		ui.Text(c.Key("batch-output-path"), text).Grow(1).MinWidth(0).SingleLine().Tooltip(text).FontSize(textSize(c, 13)).TextColor(color)
-		if ui.Button(c.Key("batch-choose-output"), locale.T("选择…")).Label(locale.T("选择输出目录")).Height(30).Padding(4, 12).Clicked() {
+		ui.Text(c.Key("batch-output-path"), text).Grow(1).MinWidth(0).SingleLine().Tooltip(tooltip).FontSize(textSize(c, 13)).TextColor(color)
+		if ui.Button(c.Key("batch-choose-output"), choose).Label(locale.T("选择输出目录")).Height(30).Padding(4, 12).Clicked() {
 			a.chooseBatchOutput()
 		}
-		if b.outputDir != "" && quietButton(c, "batch-clear-output", locale.T("不复制")).Label(locale.T("不复制到输出目录")).Height(30).Padding(4, 10).Clicked() {
+		if b.outputDir != "" && quietButton(c, "batch-clear-output", locale.T("取消另存")).Label(locale.T("不复制到输出目录")).Height(30).Padding(4, 10).Clicked() {
 			b.outputDir = ""
 			a.saveBatchPreferences()
 		}
 	})
-	if b.outputDir != "" {
-		settingsNote(c, locale.T("结果照常存入作品库，并按原文件名另存一份到这里；同名时自动加序号，不覆盖已有文件。"))
-	}
 }
 
 func (a *App) batchList(c *ui.Context) {
 	b := a.batch
 	if len(b.items) == 0 {
 		ui.Column(c.Key("batch-empty")).FillWidth().Grow(1).MinHeight(120).Center().Gap(8).Border(1, c.Theme().Border).Radius(12).Children(func() {
-			ui.Text(c, locale.T("还没有待处理图")).FontWeight(500)
-			ui.Text(c, locale.T("添加图片或文件夹，也可以直接把文件拖到这里。")).TextAlign(ui.Center).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+			ui.Text(c, locale.T("拖入待处理图片")).TextAlign(ui.Center).FontSize(textSize(c, 13)).TextColor(c.Theme().TextMuted)
 		})
 		return
 	}
@@ -416,8 +401,8 @@ func parallelSelect(c *ui.Context, value *float64) bool {
 	parallel := fmt.Sprint(int(*value))
 	changed := false
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, locale.T("并发")).FontSize(textSize(c, 13)).TextColor(c.Theme().TextMuted)
-		if ui.Select(c.Key("batch-parallel"), &parallel, options).Label(locale.T("同时发送的请求数")).Width(72).Height(32).Padding(4, 12).Radius(8).Changed() {
+		ui.Text(c, locale.T("同时处理")).FontSize(textSize(c, 13)).TextColor(c.Theme().TextMuted)
+		if ui.Select(c.Key("batch-parallel"), &parallel, options).Label(locale.T("同时处理的图片数")).Width(72).Height(32).Padding(4, 12).Radius(8).Changed() {
 			fmt.Sscan(parallel, value)
 			changed = true
 		}
@@ -429,13 +414,20 @@ func (a *App) batchFooter(c *ui.Context) {
 	b := a.batch
 	ready, invalid := b.counts()
 	ui.Row(c.Key("batch-footer")).FillWidth().Wrap().Gap(10).AlignItems(ui.Center).Children(func() {
-		summary := fmt.Sprintf(locale.T("%d 项可发送 · %d 项有问题"), ready, invalid)
-		if price := a.batchPrice(ready); price != "" && ready > 0 {
-			summary += " · " + price
-		}
-		ui.Text(c.Key("batch-summary"), summary).Grow(1).Basis(200).MinWidth(0).FontSize(textSize(c, 13))
+		ui.Row(c.Key("batch-summary")).Grow(1).Basis(200).MinWidth(0).Wrap().Gap(8).Children(func() {
+			if invalid > 0 {
+				ui.Text(c, fmt.Sprintf(locale.T("%d 张无法处理"), invalid)).FontSize(textSize(c, 13)).TextColor(c.Theme().Danger)
+			}
+			if price := a.batchPrice(ready); price != "" && ready > 0 {
+				ui.Text(c, price).FontSize(textSize(c, 13)).TextColor(c.Theme().TextMuted)
+			}
+		})
 		parallelSelect(c, &b.parallel)
-		start := ui.PrimaryButton(c.Key("batch-start"), fmt.Sprintf(locale.T("开始批量 %d"), ready)).Label(locale.T("开始批量")).Height(32).Padding(4, 14).Disabled(!a.canStartBatch())
+		label := locale.T("开始处理")
+		if ready > 0 {
+			label = fmt.Sprintf(locale.T("开始处理 %d 张"), ready)
+		}
+		start := ui.PrimaryButton(c.Key("batch-start"), label).Label(locale.T("开始处理")).Height(32).Padding(4, 14).Disabled(!a.canStartBatch())
 		if problem := a.batchProblem(); problem != "" {
 			start.Tooltip(problem)
 		}
@@ -590,12 +582,12 @@ func (a *App) batchRunFooter(c *ui.Context, run *batchRun) {
 			}
 			return
 		}
-		if quietButton(c, "batch-delete", locale.T("删除批量任务")).Height(32).Padding(4, 12).TextColor(c.Theme().Danger).Disabled(run.creating).Clicked() {
+		if quietButton(c, "batch-delete", locale.T("删除批量任务")).Height(32).Padding(4, 12).TextColor(c.Theme().Danger).Disabled(run.creating || run.deleting || a.batchSaving || len(a.batchSaves) > 0 || a.updateApplying()).Clicked() {
 			a.confirmDeleteBatch(run)
 		}
 		if failed > 0 {
 			parallelSelect(c, &run.parallel)
-			if ui.PrimaryButton(c.Key("batch-retry"), fmt.Sprintf(locale.T("重试失败项 %d"), failed)).Height(32).Padding(4, 14).Disabled(a.updateApplying() || run.meta.ID == "").Clicked() {
+			if ui.PrimaryButton(c.Key("batch-retry"), fmt.Sprintf(locale.T("重试失败项 %d"), failed)).Height(32).Padding(4, 14).Disabled(a.updateApplying() || run.deleting || run.meta.ID == "").Clicked() {
 				a.retryBatch(run)
 			}
 		}

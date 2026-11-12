@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"image2ai/internal/domain"
+	"image2ai/internal/locale"
 )
 
 // TestBatchPanelSnapshots renders the batch panel when
@@ -32,6 +33,7 @@ func TestBatchPanelSnapshots(t *testing.T) {
 	if output == "" {
 		t.Skip("set IMAGE2AI_STUDIO_SNAPSHOTS to capture rendered UI")
 	}
+	t.Cleanup(func() { locale.Set(locale.Chinese) })
 	for _, size := range [][2]int{{1280, 900}, {740, 560}} {
 		for _, dark := range []bool{false, true} {
 			a, tt, base, d := fixture(t, size[0], size[1])
@@ -39,6 +41,27 @@ func TestBatchPanelSnapshots(t *testing.T) {
 			desktop := &batchDesktop{testDesktop: d, files: map[string][]byte{}}
 			a.backend, a.desktop = backend, desktop
 			tt.SetDark(dark)
+			theme := map[bool]string{false: "light", true: "dark"}[dark]
+			save := func(name string) {
+				t.Helper()
+				for _, language := range []string{locale.Chinese, locale.English} {
+					locale.Set(language)
+					for i := 0; i < 5; i++ {
+						a.drain()
+						tt.Frame()
+					}
+					file, err := os.Create(filepath.Join(output, name+"-"+language+"-"+theme+"-"+fmtSize(size)+".png"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = png.Encode(file, tt.Image())
+					file.Close()
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				locale.Set(locale.Chinese)
+			}
 			var paths []string
 			for i, name := range []string{"cat01.png", "cat02.jpg", "portrait.png", "panorama.png"} {
 				path := filepath.Join("photos", name)
@@ -47,6 +70,7 @@ func TestBatchPanelSnapshots(t *testing.T) {
 			}
 			paths = append(paths, filepath.Join("photos", "broken.png"))
 			a.openBatch()
+			save("batch-empty")
 			a.addBatchFiles(func() ([]string, error) { return paths, nil })
 			settle(a, tt)
 			b := a.batch
@@ -56,18 +80,6 @@ func TestBatchPanelSnapshots(t *testing.T) {
 			b.outputDir = "/Users/me/out/batch"
 			b.items[0].expanded = true
 			settle(a, tt)
-			theme := map[bool]string{false: "light", true: "dark"}[dark]
-			save := func(name string) {
-				t.Helper()
-				file, err := os.Create(filepath.Join(output, name+"-"+theme+"-"+fmtSize(size)+".png"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer file.Close()
-				if err := png.Encode(file, tt.Image()); err != nil {
-					t.Fatal(err)
-				}
-			}
 			save("batch-draft")
 			// Start it: two finish, one fails, the rest wait.
 			a.startBatch()

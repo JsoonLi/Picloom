@@ -245,6 +245,9 @@ func (a *App) clearInput() {
 }
 
 func (a *App) importImages(read func(int) ([]domain.Reference, error)) {
+	if a.updateRestarting() {
+		return
+	}
 	if a.draftMarkup != "" {
 		a.problem = locale.T("标注编辑仅支持一张参考图，请先移除当前图片后再添加。")
 		return

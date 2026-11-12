@@ -84,8 +84,13 @@ func (a *App) updateRestarting() bool {
 }
 
 func (a *App) updateBusy() bool {
-	if !a.loaded || a.updateRestoreFailed || a.importing || a.saving || a.settingsPending() || a.preferencesSaving || a.batchBusy() {
+	if !a.loaded || a.updateRestoreFailed || a.importing || a.saving || a.settingsPending() || a.preferencesSaving || a.batchBusy() || a.batchSaving || len(a.batchSaves) > 0 {
 		return true
+	}
+	for _, run := range a.batchRuns {
+		if run.deleting {
+			return true
+		}
 	}
 	// An editor may hold unsaved strokes or be preparing a markup request.
 	if a.previewOpen && a.markup != nil {

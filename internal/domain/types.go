@@ -52,7 +52,7 @@ type Config struct {
 }
 
 // BatchPreferences are the batch panel's remembered choices. Zero values
-// mean the defaults: two requests at a time, sizes following each source.
+// mean the defaults: two requests at a time with the selected aspect ratio.
 type BatchPreferences struct {
 	// Concurrency is how many requests run at once, 1 to 16.
 	Concurrency int `json:"concurrency,omitempty"`

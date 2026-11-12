@@ -161,39 +161,26 @@ func (s *Store) removeBatchReference(name string) error {
 // DeleteBatch removes batch id, its shared references and every work made
 // by it. Copies in the batch's output folder are not touched.
 func (s *Store) DeleteBatch(id string) error {
-	var batch domain.Batch
-	err := s.ChangeBatches(func(rows *[]domain.Batch) error {
-		for i, row := range *rows {
-			if row.ID == id {
-				batch = row
-				*rows = append((*rows)[:i], (*rows)[i+1:]...)
-				return nil
-			}
-		}
+	batches, err := s.ReadBatches()
+	if err != nil {
+		return err
+	}
+	index := slices.IndexFunc(batches, func(batch domain.Batch) bool { return batch.ID == id })
+	if index < 0 {
 		return errors.New(locale.T("批次不存在。"))
-	})
+	}
+	batch := batches[index]
+	history, err := s.ReadHistory()
 	if err != nil {
 		return err
 	}
-	var removed []domain.ImageRecord
-	err = s.ChangeHistory(func(rows *[]domain.ImageRecord) error {
-		kept := (*rows)[:0]
-		for _, row := range *rows {
-			if row.BatchID == id {
-				removed = append(removed, row)
-			} else {
-				kept = append(kept, row)
+	// Keep both records until file cleanup succeeds. Missing files are safe
+	// to retry, whereas losing their history paths would strand the rest.
+	for _, record := range history {
+		if record.BatchID == id {
+			if err = s.removeRecordFiles(record); err != nil {
+				return err
 			}
-		}
-		*rows = kept
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	for _, record := range removed {
-		if err = s.removeRecordFiles(record); err != nil {
-			return err
 		}
 	}
 	for _, name := range batch.SharedFiles {
@@ -201,5 +188,16 @@ func (s *Store) DeleteBatch(id string) error {
 			return err
 		}
 	}
-	return nil
+	if err = s.ChangeHistory(func(rows *[]domain.ImageRecord) error {
+		*rows = slices.DeleteFunc(*rows, func(record domain.ImageRecord) bool { return record.BatchID == id })
+		return nil
+	}); err != nil {
+		return err
+	}
+	// The batch is the retry handle, so remove it only after all cleanup
+	// and the history update have completed.
+	return s.ChangeBatches(func(rows *[]domain.Batch) error {
+		*rows = slices.DeleteFunc(*rows, func(batch domain.Batch) bool { return batch.ID == id })
+		return nil
+	})
 }

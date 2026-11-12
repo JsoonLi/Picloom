@@ -26,6 +26,7 @@ type batchRun struct {
 	sharedThumbs  []*ui.Bitmap
 	sharedLoading bool
 	creating      bool
+	deleting      bool
 	running       bool
 	paused        bool
 	active        int
@@ -115,6 +116,9 @@ func (a *App) findBatchRun(key string) *batchRun {
 
 // openBatchRun shows a started batch in the batch panel.
 func (a *App) openBatchRun(run *batchRun) {
+	if run.deleting {
+		return
+	}
 	b := a.batchState()
 	b.open, b.view = true, run.key
 	a.loadSharedThumbs(run)
@@ -131,7 +135,7 @@ func (a *App) startBatch() {
 	request := b.request()
 	provider := a.batchProvider()
 	run := &batchRun{key: newID(), creating: true, running: true, parallel: b.parallel, shared: request.shared}
-	run.meta = domain.Batch{CreatedAt: time.Now().UnixMilli(), Prompt: strings.TrimRight(b.prompt, "\n"), ProviderID: b.providerID, ProviderName: provider.Name, Model: b.model, SizeMode: b.sizeMode, Ratio: b.ratio, Resolution: b.resolution, OutputFormat: b.outputFormat, Concurrency: int(b.parallel), OutputDirectory: b.outputDir, SharedNames: []string{}}
+	run.meta = domain.Batch{CreatedAt: time.Now().UnixMilli(), Prompt: strings.TrimRight(b.prompt, "\n"), ProviderID: b.providerID, ProviderName: provider.Name, Model: b.model, SizeMode: request.sizeMode, Ratio: b.ratio, Resolution: b.resolution, OutputFormat: b.outputFormat, Concurrency: int(b.parallel), OutputDirectory: b.outputDir, SharedNames: []string{}}
 	var shared [][]byte
 	for _, ref := range request.shared {
 		data, err := referenceBytes(ref)
@@ -183,7 +187,7 @@ func (a *App) startBatch() {
 
 // retryBatch queues the failed, canceled and interrupted items again.
 func (a *App) retryBatch(run *batchRun) {
-	if run.running || run.creating || run.meta.ID == "" || a.updateApplying() {
+	if run.running || run.creating || run.deleting || run.meta.ID == "" || a.updateApplying() {
 		return
 	}
 	var queued []*batchItem
@@ -401,32 +405,74 @@ func (a *App) flushBatchSaves() {
 	}
 	saves := a.batchSaves
 	a.batchSaves = nil
+	a.batchInFlight = saves
 	a.batchSaving = true
+	a.batchWrites.Add(1)
 	a.run(func() func() {
-		var err error
-		for id, items := range saves {
-			list := make([]domain.BatchItem, 0, len(items))
-			for _, item := range items {
-				list = append(list, item)
-			}
-			if e := a.backend.UpdateBatchItems(id, list); e != nil && err == nil {
-				err = e
-			}
-		}
+		defer a.batchWrites.Done()
+		err := a.writeBatchSaves(saves)
 		return func() {
+			if a.ctx.Err() != nil {
+				return
+			}
 			a.batchSaving = false
-			if err != nil && a.ctx.Err() == nil {
+			a.batchInFlight = nil
+			if err != nil {
+				a.requeueBatchSaves(saves)
 				a.problem = err.Error()
+				return
 			}
 			a.flushBatchSaves()
+			a.applyPendingUpdate()
 		}
 	})
+}
+
+func (a *App) writeBatchSaves(saves map[string]map[string]domain.BatchItem) error {
+	var err error
+	for id, items := range saves {
+		list := make([]domain.BatchItem, 0, len(items))
+		for _, item := range items {
+			list = append(list, item)
+		}
+		if e := a.backend.UpdateBatchItems(id, list); e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
+}
+
+// Retain failed or in-flight snapshots without replacing newer queued states.
+func (a *App) requeueBatchSaves(saves map[string]map[string]domain.BatchItem) {
+	if a.batchSaves == nil {
+		a.batchSaves = map[string]map[string]domain.BatchItem{}
+	}
+	for id, items := range saves {
+		if a.batchSaves[id] == nil {
+			a.batchSaves[id] = map[string]domain.BatchItem{}
+		}
+		for key, item := range items {
+			if _, newer := a.batchSaves[id][key]; !newer {
+				a.batchSaves[id][key] = item
+			}
+		}
+	}
+}
+
+// Close has waited for the disk worker, so pending callbacks cannot strand
+// terminal states or let an older snapshot overwrite them during shutdown.
+func (a *App) flushBatchSavesOnClose() {
+	a.requeueBatchSaves(a.batchInFlight)
+	if err := a.writeBatchSaves(a.batchSaves); err != nil {
+		a.problem = err.Error()
+	}
+	a.batchSaves, a.batchInFlight, a.batchSaving = nil, nil, false
 }
 
 // deleteBatch removes a finished batch with all its works.
 func (a *App) deleteBatch(key string) {
 	run := a.findBatchRun(key)
-	if run == nil || run.running || run.creating {
+	if run == nil || run.running || run.creating || run.deleting || a.batchSaving || len(a.batchSaves) > 0 || a.updateApplying() {
 		return
 	}
 	forget := func() {
@@ -450,9 +496,16 @@ func (a *App) deleteBatch(key string) {
 		forget()
 		return
 	}
+	run.deleting = true
+	a.batchWrites.Add(1)
 	a.run(func() func() {
+		defer a.batchWrites.Done()
 		err := a.backend.DeleteBatch(run.meta.ID)
 		return func() {
+			if a.ctx.Err() != nil {
+				return
+			}
+			run.deleting = false
 			if err != nil {
 				a.problem = err.Error()
 				return
@@ -460,6 +513,7 @@ func (a *App) deleteBatch(key string) {
 			forget()
 			a.showNotice(locale.T("批量任务已删除。"))
 			a.refreshHistory()
+			a.applyPendingUpdate()
 		}
 	})
 }

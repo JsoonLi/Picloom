@@ -171,7 +171,7 @@ func (a *App) imageViewer(c *ui.Context) {
 		ui.Text(c, fmt.Sprintf("%.0f%%", view.scale*100)).FontSize(12).TextColor(c.Theme().TextMuted)
 		if a.previewEditable {
 			ui.Spacer(c)
-			if quietButton(c, "open-markup", locale.T("标注编辑")).Label(locale.T("标注编辑当前图片")).Height(32).Padding(4, 8).Disabled(a.previewLoading || len(a.previewData) == 0).Clicked() {
+			if quietButton(c, "open-markup", locale.T("标注编辑")).Label(locale.T("标注编辑当前图片")).Height(32).Padding(4, 8).Disabled(a.updateRestarting() || a.previewLoading || len(a.previewData) == 0).Clicked() {
 				a.beginMarkup()
 			}
 		}

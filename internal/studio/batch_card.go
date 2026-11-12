@@ -108,7 +108,7 @@ func (a *App) batchCard(c *ui.Context, run *batchRun) {
 				}
 			}
 		}
-		open := ui.Box(c.Key("batch-cover-"+run.key)).Size(imageWidth, imageHeight).Radius(6).Clip().Background(c.Theme().Background).Label(locale.T("打开批量任务 ") + run.meta.Prompt).Focusable()
+		open := ui.Box(c.Key("batch-cover-"+run.key)).Size(imageWidth, imageHeight).Radius(6).Clip().Background(c.Theme().Background).Label(locale.T("打开批量任务 ") + run.meta.Prompt).Focusable().Disabled(run.deleting)
 		open.Children(func() {
 			switch {
 			case len(results) == 0:
@@ -169,7 +169,7 @@ func (a *App) batchCard(c *ui.Context, run *batchRun) {
 			}
 			ui.Text(c.Key("batch-card-status-"+run.key), status).SingleLine().Grow(1).MinWidth(0).Tooltip(status).FontSize(textSize(c, 11)).TextColor(color)
 			if !run.running && !run.creating {
-				iconButton(c, "batch-card-delete-"+run.key, locale.T("删除批量任务 ")+run.meta.Prompt, "trash").Size(24, 24).TextColor(c.Theme().TextMuted).OnClick(func() { a.confirmDeleteBatch(run) })
+				iconButton(c, "batch-card-delete-"+run.key, locale.T("删除批量任务 ")+run.meta.Prompt, "trash").Size(24, 24).TextColor(c.Theme().TextMuted).Disabled(run.deleting || a.batchSaving || len(a.batchSaves) > 0 || a.updateApplying()).OnClick(func() { a.confirmDeleteBatch(run) })
 			}
 		})
 	})
@@ -185,6 +185,9 @@ func (a *App) batchCover(c *ui.Context, id string, w, h float32) {
 }
 
 func (a *App) confirmDeleteBatch(run *batchRun) {
+	if run.running || run.creating || run.deleting || a.batchSaving || len(a.batchSaves) > 0 || a.updateApplying() {
+		return
+	}
 	b := a.batchState()
 	b.deleteKey, b.deleteOpen = run.key, true
 }

@@ -113,6 +113,8 @@ type App struct {
 	batch                                        *batchState
 	batchRuns                                    []*batchRun
 	batchSaves                                   map[string]map[string]domain.BatchItem
+	batchInFlight                                map[string]map[string]domain.BatchItem
+	batchWrites                                  sync.WaitGroup
 	batchSaving                                  bool
 	libraryCache                                 []libraryEntry
 	libraryCacheKey                              libraryKey
@@ -131,11 +133,13 @@ func New(backend domain.Backend, desktop domain.Desktop) *App {
 
 func (a *App) SetWindow(w *mygo.Window) { a.windowMu.Lock(); a.window = w; a.windowMu.Unlock() }
 
-// Close cancels remote requests and persists pending settings before the owner
-// closes storage. Only local settings writes need to finish before the flush.
+// Close cancels remote requests and finishes local settings and batch writes
+// before the owner closes storage. UI callbacks need not run during shutdown.
 func (a *App) Close() {
 	a.cancel()
 	a.settingsWrites.Wait()
+	a.batchWrites.Wait()
+	a.flushBatchSavesOnClose()
 	a.flushSettingsOnClose()
 }
 
@@ -302,7 +306,7 @@ func (a *App) View(c *ui.Context) {
 	if ui.AlertDialog(c.Key("delete-artwork-dialog"), &a.deleteOpen, locale.T("删除作品？"), locale.T("作品和关联参考图将从本机删除，此操作无法撤销。"), locale.T("取消"), locale.T("删除作品")) == 1 {
 		a.deleteArtwork(a.deleteID)
 	}
-	if !a.settingsOpen && !a.previewOpen && !a.deleteOpen && !a.batchOpen() {
+	if !a.settingsOpen && !a.previewOpen && !a.deleteOpen && !a.batchOpen() && !a.updateRestarting() {
 		if c.Shortcut(ui.Cmd, ui.KeyV) {
 			a.importImages(a.desktop.PasteImages)
 		}

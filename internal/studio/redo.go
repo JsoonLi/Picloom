@@ -25,7 +25,7 @@ func (a *App) redoJob(task *job) {
 // Redo and artwork reuse share one atomic draft replacement. Read/decode first,
 // so an unavailable reference cannot destroy the current draft or failed task.
 func (a *App) restoreGenerationDraft(args domain.GenerateArgs, read func() ([]domain.Reference, error), restored func()) {
-	if a.importing {
+	if a.updateRestarting() || a.importing {
 		return
 	}
 	a.referenceEpoch++

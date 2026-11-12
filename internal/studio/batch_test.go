@@ -242,8 +242,13 @@ func TestBatchRunsWithinLimitSourceFirstAndShowsAsOneCard(t *testing.T) {
 		t.Fatal("repeated images were added twice")
 	}
 	draft := a.prompt
+	// Legacy source-following preferences must not override the chosen ratio.
+	a.config.Batch = domain.BatchPreferences{SizeMode: "source", Ratio: "4:3"}
+	b.prefsLoaded = false
+	a.openBatch()
 	backend.failName = pngURL(desktop.files[paths[2]])
 	b.prompt = "把背景换成纯白"
+	b.ratio = "16:9"
 	b.shared = []domain.Reference{{ID: "shared", Name: "style.png", DataURL: pngURL(sizedPNG(8, 8))}}
 	b.parallel = 2
 	b.outputDir = filepath.Join(t.TempDir(), "out")
@@ -251,7 +256,7 @@ func TestBatchRunsWithinLimitSourceFirstAndShowsAsOneCard(t *testing.T) {
 	if !tt.HasText("就绪") {
 		t.Fatal("rows on screen were not checked before sending")
 	}
-	click(t, tt, "开始批量")
+	click(t, tt, "开始处理")
 	if len(a.batchRuns) != 1 || len(b.items) != 0 || b.view != a.batchRuns[0].key {
 		t.Fatal("starting did not turn the draft into a batch shown in the panel")
 	}
@@ -284,7 +289,7 @@ func TestBatchRunsWithinLimitSourceFirstAndShowsAsOneCard(t *testing.T) {
 		if !ok {
 			t.Fatalf("source %d was never sent first", i)
 		}
-		if want := computeSize(nearestRatio(40+i*20, 30), b.resolution); args.Size != want {
+		if want := computeSize(b.ratio, b.resolution); args.Size != want {
 			t.Fatalf("source %d sent as %s, want %s", i, args.Size, want)
 		}
 	}
@@ -321,7 +326,7 @@ func TestBatchRunsWithinLimitSourceFirstAndShowsAsOneCard(t *testing.T) {
 	if run.items[2].Status != batchDone || backend.savedItems(run.meta.ID)[2].Status != batchDone {
 		t.Fatalf("retry left %s", run.items[2].Status)
 	}
-	if backend.prefs.Concurrency != 2 || backend.prefs.OutputDirectory != b.outputDir {
+	if backend.prefs.Concurrency != 2 || backend.prefs.OutputDirectory != b.outputDir || backend.prefs.SizeMode != "fixed" || backend.prefs.Ratio != "16:9" || run.meta.SizeMode != "fixed" || run.meta.Ratio != "16:9" {
 		t.Fatalf("batch choices not remembered: %+v", backend.prefs)
 	}
 }

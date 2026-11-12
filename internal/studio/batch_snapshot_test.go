@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"image2ai/internal/domain"
 )
@@ -56,14 +57,45 @@ func TestBatchPanelSnapshots(t *testing.T) {
 			b.items[0].expanded = true
 			settle(a, tt)
 			theme := map[bool]string{false: "light", true: "dark"}[dark]
-			file, err := os.Create(filepath.Join(output, "batch-"+theme+"-"+fmtSize(size)+".png"))
-			if err != nil {
-				t.Fatal(err)
+			save := func(name string) {
+				t.Helper()
+				file, err := os.Create(filepath.Join(output, name+"-"+theme+"-"+fmtSize(size)+".png"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer file.Close()
+				if err := png.Encode(file, tt.Image()); err != nil {
+					t.Fatal(err)
+				}
 			}
-			if err := png.Encode(file, tt.Image()); err != nil {
-				t.Fatal(err)
+			save("batch-draft")
+			// Start it: two finish, one fails, the rest wait.
+			a.startBatch()
+			waitFor(t, a, func() bool { return !a.batchRuns[0].creating })
+			run := a.batchRuns[0]
+			backend.failName = pngURL(desktop.files[paths[1]])
+			releaseOne(t, a, backend)
+			releaseOne(t, a, backend)
+			waitFor(t, a, func() bool { done, failed, _ := run.counts(); return done+failed >= 2 })
+			releaseOne(t, a, backend)
+			waitFor(t, a, func() bool { done, failed, _ := run.counts(); return done+failed >= 3 })
+			// One request is still held, so wait for the screen, not for
+			// every background task.
+			frames := func() {
+				for i := 0; i < 20; i++ {
+					a.drain()
+					tt.Frame()
+					time.Sleep(5 * time.Millisecond)
+				}
 			}
-			file.Close()
+			frames()
+			save("batch-run")
+			b.open = false
+			a.refreshHistory()
+			frames()
+			save("batch-card")
+			close(backend.release)
+			waitFor(t, a, func() bool { return !run.running })
 		}
 	}
 }

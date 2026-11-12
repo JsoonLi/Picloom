@@ -111,6 +111,11 @@ type App struct {
 	autosave                                     settingsAutosave
 	showAPIKey                                   bool
 	batch                                        *batchState
+	batchRuns                                    []*batchRun
+	batchSaves                                   map[string]map[string]domain.BatchItem
+	batchSaving                                  bool
+	libraryCache                                 []libraryEntry
+	libraryCacheKey                              libraryKey
 }
 
 func New(backend domain.Backend, desktop domain.Desktop) *App {
@@ -193,6 +198,7 @@ func (a *App) start() {
 			a.loaded = true
 			a.config = config
 			a.setHistory(page)
+			a.loadBatchRuns()
 			p := config.GenerationPreferences
 			a.outputFormat = p.OutputFormat
 			a.gifSize = p.GIFSize

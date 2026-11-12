@@ -260,6 +260,11 @@ func validateHistory(raw []byte) error {
 		if _, err := stringArray(row["referencePaths"]); err != nil {
 			return err
 		}
+		if _, ok := row["batchId"]; ok {
+			if id, err := stringField(row, "batchId"); err != nil || len(id) > 64 {
+				return errors.New(locale.T("历史批次字段无效"))
+			}
+		}
 	}
 	return nil
 }

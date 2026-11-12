@@ -9,19 +9,14 @@ import (
 	"image2ai/internal/locale"
 )
 
-// batchEntry is the library header button that opens the batch panel; while
-// a batch runs it shows the progress.
+// batchEntry is the library header button that starts a new batch. Started
+// batches are cards in the gallery.
 func (a *App) batchEntry(c *ui.Context) {
-	text := locale.T("批量处理")
-	if b := a.batch; b != nil && b.running {
-		_, _, done, failed, _ := b.counts()
-		text = fmt.Sprintf(locale.T("批量 %d/%d"), done+failed, len(b.items))
-	}
-	button := quietButton(c, "open-batch", "").Label(locale.T("批量处理")).Tooltip(locale.T("批量处理")).Height(32).Padding(4, 8)
+	button := quietButton(c, "open-batch", "").Label(locale.T("批量处理")).Tooltip(locale.T("新建批量任务")).Height(32).Padding(4, 8)
 	button.Children(func() {
 		ui.Row(c).Center().Gap(8).Children(func() {
 			ui.Icon(c, icons["grid"]).Size(16, 16)
-			ui.Text(c.Key("batch-entry-text"), text)
+			ui.Text(c.Key("batch-entry-text"), locale.T("批量处理"))
 		})
 	})
 	if button.Clicked() {
@@ -35,6 +30,7 @@ func (a *App) batchPanel(c *ui.Context, narrow bool) {
 	}
 	b := a.batch
 	wasOpen := b.open
+	run := a.findBatchRun(b.view)
 	restore := popoverTheme(c)
 	defer restore()
 	width, height := c.Size()
@@ -42,13 +38,25 @@ func (a *App) batchPanel(c *ui.Context, narrow bool) {
 	panelHeight := max(float32(360), height-96)
 	ui.Modal(c.Key("batch-dialog"), &b.open, func() {
 		panel := ui.Column(c.Key("batch-panel")).Width(panelWidth).MaxWidthPercent(100).Height(panelHeight).Gap(12)
-		if paths := panel.DroppedFiles(); len(paths) > 0 && !b.running {
+		if paths := panel.DroppedFiles(); len(paths) > 0 && run == nil {
 			copied := append([]string(nil), paths...)
 			a.addBatchFiles(func() ([]string, error) { return a.desktop.CollectImages(copied) })
 		}
 		panel.Children(func() {
 			ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locale.T("批量处理")).Grow(1).MinWidth(0).FontSize(textSize(c, 18)).FontWeight(600)
+				title := locale.T("新建批量任务")
+				if run != nil {
+					title = locale.T("批量任务")
+				}
+				ui.Text(c, title).FontSize(textSize(c, 18)).FontWeight(600)
+				if run != nil {
+					ui.Text(c.Key("batch-run-time"), batchTime(run.meta.CreatedAt)).Grow(1).MinWidth(0).SingleLine().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+					if quietButton(c, "batch-new", locale.T("新建批量")).Height(30).Padding(4, 10).Clicked() {
+						a.openBatch()
+					}
+				} else {
+					ui.Spacer(c)
+				}
 				if iconButton(c, "close-batch", locale.T("关闭批量处理"), "close").Size(32, 32).Clicked() {
 					b.open = false
 				}
@@ -61,9 +69,13 @@ func (a *App) batchPanel(c *ui.Context, narrow bool) {
 					}
 				})
 			}
+			if run != nil {
+				a.batchRunView(c, run)
+				return
+			}
 			// On a short window the settings scroll so the list and the start
 			// button stay in view.
-			ui.Scroll(c.Key("batch-settings")).FillWidth().Shrink(1).MinHeight(64).Gap(10).Disabled(b.running).Children(func() {
+			ui.Scroll(c.Key("batch-settings")).FillWidth().Shrink(1).MinHeight(64).Gap(10).Children(func() {
 				a.batchSources(c)
 				a.batchShared(c)
 				placeholder := c.Theme().TextMuted
@@ -80,12 +92,35 @@ func (a *App) batchPanel(c *ui.Context, narrow bool) {
 	})
 	if wasOpen && !b.open {
 		a.saveBatchPreferences()
+		a.dropBatchThumbs()
 	}
-	if ui.AlertDialog(c.Key("batch-stop-dialog"), &b.stopOpen, locale.T("取消剩余任务？"), locale.T("正在发送的请求会中断，排队中的图片不再处理。已完成的结果会保留。"), locale.T("继续处理"), locale.T("取消剩余")) == 1 {
-		a.stopBatch()
+	if ui.AlertDialog(c.Key("batch-stop-dialog"), &b.stopOpen, locale.T("取消剩余任务？"), locale.T("正在发送的请求会中断，排队中的图片不再处理。已完成的结果会保留。"), locale.T("继续处理"), locale.T("取消剩余")) == 1 && run != nil {
+		a.stopBatch(run)
 	}
 	if ui.AlertDialog(c.Key("batch-clear-dialog"), &b.clearOpen, locale.T("清空列表？"), locale.T("只移除列表中的图片，不会删除原文件和已生成的作品。"), locale.T("取消"), locale.T("清空列表")) == 1 {
 		a.clearBatch()
+	}
+	if target := a.findBatchRun(b.deleteKey); target != nil || !b.deleteOpen {
+		done := 0
+		if target != nil {
+			done, _, _ = target.counts()
+		}
+		message := fmt.Sprintf(locale.T("将删除这次批量的 %d 张作品和批次记录，输出目录里的副本不受影响。此操作无法撤销。"), done)
+		if ui.AlertDialog(c.Key("batch-delete-dialog"), &b.deleteOpen, locale.T("删除批量任务？"), message, locale.T("取消"), locale.T("删除批量任务")) == 1 {
+			a.deleteBatch(b.deleteKey)
+		}
+	}
+}
+
+// dropBatchThumbs frees the source thumbnails of started batches once the
+// panel closes; they load again when a batch is shown.
+func (a *App) dropBatchThumbs() {
+	for _, run := range a.batchRuns {
+		for _, item := range run.items {
+			if !item.thumbLoading {
+				item.Thumb = nil
+			}
+		}
 	}
 }
 
@@ -248,14 +283,14 @@ func (a *App) batchList(c *ui.Context) {
 	}).FillWidth().Grow(1).Shrink(0).Basis(0).MinHeight(140).Border(1, c.Theme().Border).Radius(12).Label(locale.T("参数清单"))
 }
 
+// batchStatus describes an item of the draft or of a started batch.
 func (a *App) batchStatus(c *ui.Context, item *batchItem) (string, ui.Color) {
-	b := a.batch
 	muted := c.Theme().TextMuted
 	switch item.Status {
 	case batchInvalid:
 		return item.Problem, c.Theme().Danger
 	case batchReady:
-		if _, problem, ok := b.currentPlan(item); ok && problem != "" {
+		if _, problem, ok := a.batch.currentPlan(item); ok && problem != "" {
 			return problem, c.Theme().Danger
 		} else if ok {
 			return locale.T("就绪"), muted
@@ -271,6 +306,9 @@ func (a *App) batchStatus(c *ui.Context, item *batchItem) (string, ui.Color) {
 		}
 		return locale.T("已完成"), c.Theme().Text
 	case batchCanceled:
+		if item.Problem != "" {
+			return item.Problem, muted
+		}
 		return locale.T("已取消"), muted
 	case batchFailed:
 		return item.Problem, c.Theme().Danger
@@ -278,6 +316,7 @@ func (a *App) batchStatus(c *ui.Context, item *batchItem) (string, ui.Color) {
 	return "", muted
 }
 
+// batchRow is one draft image: what will be sent, checked before sending.
 func (a *App) batchRow(c *ui.Context, item *batchItem) {
 	b := a.batch
 	if item.Status == batchReady {
@@ -302,9 +341,6 @@ func (a *App) batchRow(c *ui.Context, item *batchItem) {
 			})
 			status, color := a.batchStatus(c, item)
 			ui.Text(c.Key("batch-status-"+item.ID), status).Basis(160).Shrink(1).MinWidth(0).MaxLines(2).Tooltip(status).FontSize(textSize(c, 12)).TextColor(color).TextAlign(ui.End)
-			if item.Status == batchGenerating {
-				ui.Progress(c.Key("batch-progress-"+item.ID), float64(item.Progress)/100).Width(60).Label(locale.T("生成进度"))
-			}
 			if item.Status != batchInvalid {
 				label := locale.T("查看请求")
 				if item.expanded {
@@ -314,15 +350,10 @@ func (a *App) batchRow(c *ui.Context, item *batchItem) {
 					item.expanded = !item.expanded
 				}
 			}
-			if item.Status != batchQueued && item.Status != batchGenerating {
-				iconButton(c, "batch-remove-"+item.ID, locale.T("移除 ")+item.Name, "close").Size(28, 28).Disabled(b.running).OnClick(func() { a.removeBatchItem(item.ID) })
-			}
+			iconButton(c, "batch-remove-"+item.ID, locale.T("移除 ")+item.Name, "close").Size(28, 28).OnClick(func() { a.removeBatchItem(item.ID) })
 		})
 		if item.expanded {
 			a.batchPlanDetail(c, item)
-		}
-		if item.OutputPath != "" {
-			ui.Text(c, locale.T("已另存：")+item.OutputPath).SingleLine().Tooltip(item.OutputPath).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
 		}
 	})
 	ui.Divider(c)
@@ -341,16 +372,12 @@ func formatBytes(n int) string {
 // batchPlanDetail shows the request exactly as it is sent: the key masked
 // and images summarised instead of their bytes.
 func (a *App) batchPlanDetail(c *ui.Context, item *batchItem) {
-	b := a.batch
-	plan, problem, ok := b.currentPlan(item)
-	if item.Status != batchReady && item.Plan != nil {
-		plan, problem, ok = item.Plan, "", true
-	}
+	plan, problem, ok := a.batch.currentPlan(item)
 	ui.Column(c.Key("batch-plan-" + item.ID)).FillWidth().Gap(4).Padding(10).Background(c.Theme().Background).Radius(8).Children(func() {
 		muted := c.Theme().TextMuted
 		small := textSize(c, 12)
 		switch {
-		case a.batchProblem() != "" && item.Status == batchReady:
+		case a.batchProblem() != "":
 			ui.Text(c, a.batchProblem()).FontSize(small).TextColor(muted)
 			return
 		case !ok || (plan == nil && problem == ""):
@@ -381,58 +408,196 @@ func (a *App) batchPlanDetail(c *ui.Context, item *batchItem) {
 	})
 }
 
+func parallelSelect(c *ui.Context, value *float64) bool {
+	options := make([]string, batchMaxParallel)
+	for i := range options {
+		options[i] = fmt.Sprint(i + 1)
+	}
+	parallel := fmt.Sprint(int(*value))
+	changed := false
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, locale.T("并发")).FontSize(textSize(c, 13)).TextColor(c.Theme().TextMuted)
+		if ui.Select(c.Key("batch-parallel"), &parallel, options).Label(locale.T("同时发送的请求数")).Width(72).Height(32).Padding(4, 12).Radius(8).Changed() {
+			fmt.Sscan(parallel, value)
+			changed = true
+		}
+	})
+	return changed
+}
+
 func (a *App) batchFooter(c *ui.Context) {
 	b := a.batch
-	ready, invalid, done, failed, waiting := b.counts()
+	ready, invalid := b.counts()
 	ui.Row(c.Key("batch-footer")).FillWidth().Wrap().Gap(10).AlignItems(ui.Center).Children(func() {
-		var summary string
-		if b.running || done+failed > 0 {
-			summary = fmt.Sprintf(locale.T("%d/%d 完成 · %d 失败 · %d 等待"), done, len(b.items), failed, waiting)
-		} else {
-			summary = fmt.Sprintf(locale.T("%d 项可发送 · %d 项有问题"), ready, invalid)
-			if price := a.batchPrice(ready); price != "" && ready > 0 {
-				summary += " · " + price
-			}
+		summary := fmt.Sprintf(locale.T("%d 项可发送 · %d 项有问题"), ready, invalid)
+		if price := a.batchPrice(ready); price != "" && ready > 0 {
+			summary += " · " + price
 		}
 		ui.Text(c.Key("batch-summary"), summary).Grow(1).Basis(200).MinWidth(0).FontSize(textSize(c, 13))
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locale.T("并发")).FontSize(textSize(c, 13)).TextColor(c.Theme().TextMuted)
-			options := make([]string, batchMaxParallel)
-			for i := range options {
-				options[i] = fmt.Sprint(i + 1)
+		parallelSelect(c, &b.parallel)
+		start := ui.PrimaryButton(c.Key("batch-start"), fmt.Sprintf(locale.T("开始批量 %d"), ready)).Label(locale.T("开始批量")).Height(32).Padding(4, 14).Disabled(!a.canStartBatch())
+		if problem := a.batchProblem(); problem != "" {
+			start.Tooltip(problem)
+		}
+		if start.Clicked() {
+			a.startBatch()
+		}
+	})
+}
+
+// batchRunView shows a started batch: its settings, then each source image
+// beside its result.
+func (a *App) batchRunView(c *ui.Context, run *batchRun) {
+	m := run.meta
+	muted := c.Theme().TextMuted
+	ui.Column(c.Key("batch-run-summary")).FillWidth().Shrink(1).MinHeight(48).Gap(8).Children(func() {
+		ui.Text(c.Key("batch-run-prompt"), m.Prompt).FillWidth().MaxLines(3).Tooltip(m.Prompt).FontSize(textSize(c, 14))
+		size := locale.T("跟随原图比例")
+		if m.SizeMode == "fixed" {
+			size = ratioLabel(m.Ratio)
+		}
+		format := strings.ToUpper(m.OutputFormat)
+		if format == "" {
+			format = locale.T("默认格式")
+		}
+		details := []string{m.ProviderName + " / " + m.Model, size, strings.ToUpper(m.Resolution), format}
+		if m.OutputDirectory != "" {
+			details = append(details, locale.T("另存到 ")+m.OutputDirectory)
+		}
+		ui.Text(c.Key("batch-run-details"), strings.Join(details, " · ")).FillWidth().MaxLines(2).FontSize(textSize(c, 12)).TextColor(muted)
+		if len(m.SharedNames) > 0 {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, locale.T("共用参考图")).FontSize(textSize(c, 12)).TextColor(muted)
+				for i, name := range m.SharedNames {
+					ui.Box(c.Key(fmt.Sprintf("batch-run-shared-%d", i))).Size(32, 32).Tooltip(name).Children(func() {
+						if i < len(run.sharedThumbs) && run.sharedThumbs[i] != nil {
+							ui.Image(c, run.sharedThumbs[i]).Fill().Fit(ui.Contain).Radius(6).Border(1, c.Theme().Border).Label(locale.T("共用参考图 ") + name)
+						}
+					})
+				}
+			})
+		}
+	})
+	run.list.Key = func(i int) any {
+		if i < len(run.items) {
+			return run.items[i].ID
+		}
+		return i
+	}
+	ui.List(c.Key("batch-run-list"), &run.list, len(run.items), func(i int) {
+		a.batchRunRow(c, run, run.items[i])
+	}).FillWidth().Grow(1).Shrink(0).Basis(0).MinHeight(140).Border(1, c.Theme().Border).Radius(12).Label(locale.T("批量任务的图片"))
+	a.pumpThumbnails()
+	a.batchRunFooter(c, run)
+}
+
+// loadSourceThumb shows a source image: from its file, or, once moved or
+// deleted, from the copy saved with its result.
+func (a *App) loadSourceThumb(item *batchItem) {
+	if item.Thumb != nil || item.thumbLoading {
+		return
+	}
+	item.thumbLoading = true
+	path, name, record := item.Path, item.Name, item.RecordID
+	a.run(func() func() {
+		var thumb *ui.Bitmap
+		if source, err := a.readBatchSource(path, name); err == nil {
+			if data, err := referenceBytes(source); err == nil {
+				thumb, _ = thumbnail(data, batchThumbSize, batchThumbSize)
 			}
-			parallel := fmt.Sprint(int(b.parallel))
-			if ui.Select(c.Key("batch-parallel"), &parallel, options).Label(locale.T("同时发送的请求数")).Width(72).Height(32).Padding(4, 12).Radius(8).Changed() {
-				fmt.Sscan(parallel, &b.parallel)
-				a.pumpBatch()
+		}
+		if thumb == nil && record != "" {
+			if data, err := a.backend.ReadReference(record, 0); err == nil {
+				thumb, _ = thumbnail(data, batchThumbSize, batchThumbSize)
+			}
+		}
+		return func() {
+			item.thumbLoading = false
+			item.Thumb = thumb
+		}
+	})
+}
+
+func (a *App) batchRunRow(c *ui.Context, run *batchRun, item *batchItem) {
+	a.loadSourceThumb(item)
+	ui.Column(c.Key("batch-run-row-"+item.ID)).FillWidth().Padding(8, 10).Gap(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(48, 48).Shrink(0).Children(func() {
+				if item.Thumb != nil {
+					ui.Image(c.Key("batch-run-source-"+item.ID), item.Thumb).Fill().Fit(ui.Contain).Radius(6).Label(locale.T("原图 ") + item.Name)
+				}
+			})
+			ui.Icon(c, icons["arrow"]).Size(14, 14).TextColor(c.Theme().TextMuted)
+			result := ui.Box(c.Key("batch-run-result-"+item.ID)).Size(48, 48).Shrink(0).Radius(6).Clip().Border(1, c.Theme().Border)
+			if item.Status == batchDone && item.RecordID != "" {
+				a.wantThumbnail(item.RecordID)
+				result.Label(locale.T("查看结果 ") + item.Name).Focusable().Tooltip(locale.T("查看结果"))
+				result.Children(func() {
+					if thumb := a.thumbs[item.RecordID]; thumb != nil {
+						ui.Image(c.Key("batch-run-result-image-"+item.ID), thumb).Fill().Fit(ui.Cover)
+					}
+				})
+				if result.Clicked() {
+					a.openBatchResult(item)
+				}
+			} else {
+				result.Children(func() {})
+			}
+			ui.Column(c).Grow(1).Basis(120).MinWidth(0).Gap(2).Children(func() {
+				ui.Text(c, item.Name).SingleLine().Tooltip(item.Path).FontSize(textSize(c, 13)).FontWeight(500)
+				detail := fmt.Sprintf(locale.T("原图 %d×%d · 发送 %s"), item.Width, item.Height, item.Size)
+				ui.Text(c, detail).SingleLine().FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+			})
+			status, color := a.batchStatus(c, item)
+			ui.Text(c.Key("batch-run-status-"+item.ID), status).Basis(160).Shrink(1).MinWidth(0).MaxLines(2).Tooltip(status).FontSize(textSize(c, 12)).TextColor(color).TextAlign(ui.End)
+			if item.Status == batchGenerating {
+				ui.Progress(c.Key("batch-progress-"+item.ID), float64(item.Progress)/100).Width(60).Label(locale.T("生成进度"))
 			}
 		})
-		if !b.running {
-			if failed > 0 && ui.Button(c.Key("batch-retry"), fmt.Sprintf(locale.T("重试失败项 %d"), failed)).Height(32).Padding(4, 12).Disabled(a.updateApplying()).Clicked() {
-				a.retryBatchFailures()
+		if item.OutputPath != "" {
+			ui.Text(c, locale.T("已另存：")+item.OutputPath).SingleLine().Tooltip(item.OutputPath).FontSize(textSize(c, 12)).TextColor(c.Theme().TextMuted)
+		}
+	})
+	ui.Divider(c)
+}
+
+func (a *App) batchRunFooter(c *ui.Context, run *batchRun) {
+	b := a.batch
+	done, failed, waiting := run.counts()
+	ui.Row(c.Key("batch-run-footer")).FillWidth().Wrap().Gap(10).AlignItems(ui.Center).Children(func() {
+		summary := fmt.Sprintf(locale.T("%d/%d 完成 · %d 失败 · %d 等待"), done, len(run.items), failed, waiting)
+		if run.creating {
+			summary = locale.T("正在保存批次…")
+		}
+		ui.Text(c.Key("batch-summary"), summary).Grow(1).Basis(200).MinWidth(0).FontSize(textSize(c, 13))
+		if run.running {
+			if parallelSelect(c, &run.parallel) {
+				a.pumpBatch(run)
 			}
-			start := ui.PrimaryButton(c.Key("batch-start"), fmt.Sprintf(locale.T("开始批量 %d"), ready)).Label(locale.T("开始批量")).Height(32).Padding(4, 14).Disabled(!a.canStartBatch())
-			if problem := a.batchProblem(); problem != "" {
-				start.Tooltip(problem)
+			pause := locale.T("暂停")
+			if run.paused {
+				pause = locale.T("继续")
 			}
-			if start.Clicked() {
-				a.startBatch()
+			if ui.Button(c.Key("batch-pause"), pause).Height(32).Padding(4, 12).Disabled(run.creating).Clicked() {
+				run.paused = !run.paused
+				if run.paused {
+					a.showNotice(locale.T("已暂停：正在发送的请求会完成，其余等待继续。"))
+				}
+				a.pumpBatch(run)
+			}
+			if ui.Button(c.Key("batch-stop"), locale.T("取消剩余")).Height(32).Padding(4, 12).Disabled(run.creating).Clicked() {
+				b.stopOpen = true
 			}
 			return
 		}
-		pause := locale.T("暂停")
-		if b.paused {
-			pause = locale.T("继续")
+		if quietButton(c, "batch-delete", locale.T("删除批量任务")).Height(32).Padding(4, 12).TextColor(c.Theme().Danger).Disabled(run.creating).Clicked() {
+			a.confirmDeleteBatch(run)
 		}
-		if ui.Button(c.Key("batch-pause"), pause).Height(32).Padding(4, 12).Clicked() {
-			b.paused = !b.paused
-			if b.paused {
-				a.showNotice(locale.T("已暂停：正在发送的请求会完成，其余等待继续。"))
+		if failed > 0 {
+			parallelSelect(c, &run.parallel)
+			if ui.PrimaryButton(c.Key("batch-retry"), fmt.Sprintf(locale.T("重试失败项 %d"), failed)).Height(32).Padding(4, 14).Disabled(a.updateApplying() || run.meta.ID == "").Clicked() {
+				a.retryBatch(run)
 			}
-			a.pumpBatch()
-		}
-		if ui.Button(c.Key("batch-stop"), locale.T("取消剩余")).Height(32).Padding(4, 12).Clicked() {
-			b.stopOpen = true
 		}
 	})
 }

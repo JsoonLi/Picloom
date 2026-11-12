@@ -138,6 +138,27 @@ func (b *testBackend) Generate(ctx context.Context, args domain.GenerateArgs, pr
 	b.records = append(b.records, record)
 	return record, nil
 }
+
+// Batches are not kept by the basic fixture; batch tests use batchBackend.
+func (b *testBackend) ListBatches() ([]domain.Batch, error) { return nil, nil }
+func (b *testBackend) CreateBatch(batch domain.Batch, _ [][]byte) (domain.Batch, error) {
+	batch.ID = newID()[:16]
+	return batch, nil
+}
+func (b *testBackend) UpdateBatchItems(string, []domain.BatchItem) error { return nil }
+func (b *testBackend) ReadBatchReference(string, int) ([]byte, error) {
+	return nil, errors.New("参考图不存在")
+}
+func (b *testBackend) DeleteBatch(string) error { return nil }
+func (b *testBackend) SaveBatchPreferences(p domain.BatchPreferences) (domain.Config, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.config.Batch = p
+	return b.config, nil
+}
+func (b *testBackend) PlanGeneration(args domain.GenerateArgs) (domain.RequestPlan, error) {
+	return domain.RequestPlan{Method: "POST"}, nil
+}
 func (b *testBackend) Favorite(id string, value bool) (domain.ImageRecord, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

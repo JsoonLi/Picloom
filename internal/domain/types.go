@@ -82,6 +82,8 @@ type ImageRecord struct {
 	ReferenceCount     int      `json:"referenceCount"`
 	ReferencePaths     []string `json:"referencePaths"`
 	Favorite           bool     `json:"favorite"`
+	// BatchID names the batch this work came from, if any.
+	BatchID string `json:"batchId,omitempty"`
 }
 type HistoryQuery struct {
 	Page          int
@@ -124,6 +126,47 @@ type GenerateArgs struct {
 	Model           string   `json:"model"`
 	Size            string   `json:"size"`
 	ReferenceImages []string `json:"referenceImages"`
+	// BatchID is recorded on the saved work; it does not change the request.
+	BatchID string `json:"batchId,omitempty"`
+}
+
+// Batch is one batch run: its settings and every source image, kept so the
+// library can show it as one card and reopen it after a restart.
+type Batch struct {
+	ID              string `json:"id"`
+	CreatedAt       int64  `json:"createdAt"`
+	Prompt          string `json:"prompt"`
+	ProviderID      string `json:"providerId"`
+	ProviderName    string `json:"providerName"`
+	Model           string `json:"model"`
+	SizeMode        string `json:"sizeMode"`
+	Ratio           string `json:"ratio"`
+	Resolution      string `json:"resolution"`
+	OutputFormat    string `json:"outputFormat,omitempty"`
+	Concurrency     int    `json:"concurrency"`
+	OutputDirectory string `json:"outputDirectory,omitempty"`
+	// SharedNames and SharedFiles are the shared references, sent after
+	// each source; files are names in the data directory's batch folder.
+	SharedNames []string    `json:"sharedNames"`
+	SharedFiles []string    `json:"sharedFiles"`
+	Items       []BatchItem `json:"items"`
+}
+
+// BatchItem is one source image of a batch and what became of it.
+type BatchItem struct {
+	ID         string `json:"id"`
+	SourcePath string `json:"sourcePath"`
+	Name       string `json:"name"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	// Size is the size requested for this image.
+	Size string `json:"size"`
+	// Status is queued, done, error or canceled. Queued items found after a
+	// restart were interrupted.
+	Status     string `json:"status"`
+	Error      string `json:"error,omitempty"`
+	RecordID   string `json:"recordId,omitempty"`
+	OutputPath string `json:"outputPath,omitempty"`
 }
 type ModelPricing struct {
 	Model    string             `json:"model"`
@@ -150,6 +193,17 @@ type Backend interface {
 	SaveImageDirectory(string) (Config, error)
 	SavePreferences(GenerationPreferences) (Config, error)
 	SaveBatchPreferences(BatchPreferences) (Config, error)
+	// ListBatches returns every batch, newest first.
+	ListBatches() ([]Batch, error)
+	// CreateBatch saves a new batch and its shared references, and returns
+	// it with its ID, time and stored reference files.
+	CreateBatch(batch Batch, shared [][]byte) (Batch, error)
+	// UpdateBatchItems replaces the items of batch id with the same IDs.
+	UpdateBatchItems(id string, items []BatchItem) error
+	// ReadBatchReference returns shared reference index of batch id.
+	ReadBatchReference(id string, index int) ([]byte, error)
+	// DeleteBatch removes a batch, its shared references and its works.
+	DeleteBatch(id string) error
 	// PlanGeneration validates args as Generate does and returns the
 	// request it would send, with the API key masked.
 	PlanGeneration(GenerateArgs) (RequestPlan, error)

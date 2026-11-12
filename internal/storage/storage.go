@@ -613,8 +613,14 @@ func (s *Store) Delete(id string) error {
 	if err != nil {
 		return err
 	}
+	return s.removeRecordFiles(removed)
+}
+
+// removeRecordFiles deletes a removed record's image, references and
+// thumbnails, skipping files outside the studio's own folders.
+func (s *Store) removeRecordFiles(removed domain.ImageRecord) error {
 	// A thumbnail left behind only costs disk space: it never shows again.
-	_ = s.removeThumbnails(id)
+	_ = s.removeThumbnails(removed.ID)
 	files := []struct{ path, bucket string }{{removed.ImagePath, "images"}}
 	for _, file := range removed.ReferencePaths {
 		files = append(files, struct{ path, bucket string }{file, "references"})

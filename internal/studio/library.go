@@ -96,7 +96,8 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				}
 			})
 		})
-		n := len(a.jobs) + len(a.history.Items)
+		entries := a.libraryEntries()
+		n := len(a.jobs) + len(entries)
 		if n == 0 {
 			message := locale.T("写下提示词，开始生成。作品与参考图会自动保存在本机。")
 			title := locale.T("还没有作品")
@@ -124,9 +125,8 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				if i < len(a.jobs) {
 					return "job-" + a.jobs[i].Args.JobID
 				}
-				index := i - len(a.jobs)
-				if index >= 0 && index < len(a.history.Items) {
-					return a.history.Items[index].ID
+				if index := i - len(a.jobs); index >= 0 && index < len(entries) {
+					return entries[index].key()
 				}
 				return i
 			}
@@ -135,9 +135,8 @@ func (a *App) library(c *ui.Context, narrow bool) {
 				if i < len(a.jobs) {
 					return a.jobs[i].Args.Prompt
 				}
-				index := i - len(a.jobs)
-				if index >= 0 && index < len(a.history.Items) {
-					return a.history.Items[index].Prompt
+				if index := i - len(a.jobs); index >= 0 && index < len(entries) {
+					return entries[index].prompt()
 				}
 				return ""
 			}
@@ -152,11 +151,19 @@ func (a *App) library(c *ui.Context, narrow bool) {
 			ui.List(c.Key("artwork-grid"), &a.grid, rows, func(row int) {
 				ui.Row(c).FillWidth().Height(cellHeight).Gap(artworkGridGap).Padding(4).Children(func() {
 					for i := row * columns; i < min(n, (row+1)*columns); i++ {
-						ui.Box(c.Key(a.gridItemKey(i))).Width(artworkMaxCardWidth).Shrink(0).Children(func() {
+						key := ""
+						if i < len(a.jobs) {
+							key = "job-" + a.jobs[i].Args.JobID
+						} else {
+							key = entries[i-len(a.jobs)].key()
+						}
+						ui.Box(c.Key(key)).Width(artworkMaxCardWidth).Shrink(0).Children(func() {
 							if i < len(a.jobs) {
 								a.jobCard(c, a.jobs[i])
+							} else if entry := entries[i-len(a.jobs)]; entry.run != nil {
+								a.batchCard(c, entry.run)
 							} else {
-								a.artworkCard(c, a.history.Items[i-len(a.jobs)])
+								a.artworkCard(c, *entry.record)
 							}
 						})
 					}
@@ -165,13 +172,6 @@ func (a *App) library(c *ui.Context, narrow bool) {
 			a.pumpThumbnails()
 		}
 	})
-}
-
-func (a *App) gridItemKey(i int) string {
-	if i < len(a.jobs) {
-		return "job-" + a.jobs[i].Args.JobID
-	}
-	return a.history.Items[i-len(a.jobs)].ID
 }
 
 func (a *App) jobCard(c *ui.Context, task *job) {
@@ -272,6 +272,7 @@ func (a *App) refreshHistory() {
 // and favourite changes show known artworks at once.
 func (a *App) setHistory(page domain.HistoryPage) {
 	a.history = page
+	a.libraryCache = nil
 	a.thumbErrors = make(map[string]string)
 	a.trimThumbs()
 }

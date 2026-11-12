@@ -275,6 +275,7 @@ func (s *Service) Generate(parent context.Context, args domain.GenerateArgs, onP
 		}
 	}
 	record = domain.ImageRecord{ID: id, Prompt: args.Prompt, ProviderID: provider.ID, ProviderName: provider.Name, Model: args.Model, Size: args.Size, CreatedAt: time.Now().UnixMilli(), ImagePath: imagePath, MIMEType: mime, Width: width, Height: height, ReferenceCount: len(inputs), ReferencePaths: referencePaths, Favorite: false}
+	record.BatchID = args.BatchID
 	if args.OutputFormat == "gif" {
 		record.GIFFrameCount = args.FrameCount
 		record.GIFFrameDurationMS = args.FrameDurationMS
